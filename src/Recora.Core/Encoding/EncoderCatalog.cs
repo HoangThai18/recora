@@ -92,8 +92,9 @@ namespace Recora.Core.Encoding
         }
 
         /// <summary>
-        /// Encoders to try for <paramref name="codec"/>, then H.264 ones: a recording in H.264 beats no recording when
-        /// nothing on this PC can produce H.265 or AV1. <paramref name="available"/> filters by what ffmpeg.exe was built with.
+        /// Encoders to try, in three tiers: GPU encoders for <paramref name="codec"/>, then GPU encoders for H.264 (a GPU
+        /// recording in H.264 beats a CPU one in H.265 that makes the game stutter), then the CPU encoders, x264 first
+        /// (BR-02). <paramref name="available"/> filters by what ffmpeg.exe was built with.
         /// </summary>
         public static IReadOnlyList<VideoEncoder> Candidates(
             GpuVendor displayVendor,
@@ -101,9 +102,11 @@ namespace Recora.Core.Encoding
             IReadOnlyCollection<string>? available = null)
         {
             var codecs = codec == VideoCodec.H264 ? new[] { codec } : new[] { codec, VideoCodec.H264 };
+            var kinds = KindOrder(displayVendor);
+            var gpu = codecs.SelectMany(c => kinds.Where(IsHardware).Select(kind => (kind, codec: c)));
+            var cpu = kinds.Where(kind => !IsHardware(kind)).SelectMany(kind => codecs.Select(c => (kind, codec: c)));
 
-            return codecs
-                .SelectMany(c => KindOrder(displayVendor).Select(kind => (kind, codec: c)))
+            return gpu.Concat(cpu)
                 .Where(p => FfmpegName(p.kind, p.codec) is string name && (available == null || available.Contains(name)))
                 .Select(p => new VideoEncoder(p.kind, p.codec))
                 .ToList();

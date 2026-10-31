@@ -23,7 +23,7 @@ Mỗi lần push, CI trên `windows-latest` build app, chạy test, chạy selft
 
 ## Acceptance criteria
 - [x] CI xanh trên `phase/P0`; artifact zip dưới 20 MB; ảnh cửa sổ có trong artifact
-- [x] ffprobe: 1 luồng hình, 1 luồng tiếng dài bằng nhau (lệch ≤ 0,15 giây), cả file trong 2,5–6 giây, tiếng thử có trong file (RMS > 0,05)
+- [x] ffprobe: 1 luồng hình, 1 luồng tiếng dài bằng nhau (lệch ≤ 0,15 giây), cả file 3 ± 0,5 giây, tiếng thử có trong file (RMS > 0,05)
 - [x] Đồng bộ đo trực tiếp: màn hình đổi trắng và tiếng bíp bắt đầu cùng lúc; trong file, khung trắng đầu tiên trừ mẫu tiếng đầu tiên nằm trong -100…+150 ms
 
 ## Security

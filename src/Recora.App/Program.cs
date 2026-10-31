@@ -37,8 +37,22 @@ namespace Recora.App
             }
 
             Log.Initialize(Log.DefaultDirectory, echoToConsole: false);
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (_, e) => Report(e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error("unhandled exception", e.ExceptionObject as Exception);
             Application.Run(new MainForm());
             return 0;
+        }
+
+        /// <summary>Details go to the log; the user only sees a Vietnamese sentence, never a stack trace.</summary>
+        private static void Report(Exception error)
+        {
+            Log.Error("unexpected error on the UI thread", error);
+            MessageBox.Show(
+                "Recora gặp lỗi không mong muốn nhưng vẫn chạy tiếp. Chi tiết đã ghi vào nhật ký.",
+                "Recora",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
 
         private static string? OptionValue(string[] args, string name)

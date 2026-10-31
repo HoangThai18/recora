@@ -62,9 +62,10 @@ namespace Recora.App.Logging
                 {
                     File.AppendAllText(_path, line + Environment.NewLine, Encoding.UTF8);
                 }
-                catch (IOException)
+                catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is System.Security.SecurityException)
                 {
-                    // A full or locked disk must not take recording down with it; the line is simply lost.
+                    // A full, locked or read-only log must not take recording down with it (this runs on FFmpeg's
+                    // stderr thread too); the line is simply lost.
                 }
             }
         }

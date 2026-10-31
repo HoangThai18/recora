@@ -52,7 +52,7 @@ namespace Recora.App
         private static void Execute(string directory, SelfTestReport report)
         {
             var ffmpeg = FfmpegLocator.Find();
-            report.FfmpegVersion = FfmpegProcess.Run(ffmpeg, new FfmpegArgs().Add("-hide_banner", "-version"), TimeSpan.FromSeconds(20))
+            report.FfmpegVersion = FfmpegProcess.Run(ffmpeg, ProbeCommand.Version(), TimeSpan.FromSeconds(20))
                 .Output.Split('\n').FirstOrDefault()?.Trim() ?? string.Empty;
 
             var filters = ProbeCommand.ParseFilters(FfmpegProcess.Run(ffmpeg, ProbeCommand.Filters(), TimeSpan.FromSeconds(20)).Output);
@@ -154,8 +154,10 @@ namespace Recora.App
                     var clock = Stopwatch.StartNew();
                     var flashed = false;
 
+                    // Stops by the audio clock: Target after FFmpeg opened the pipe. FFmpeg's out_time would lag behind
+                    // by the encoder's delay and make the file a second longer than asked.
                     while (!process.HasExited && clock.Elapsed < TimeSpan.FromSeconds(30)
-                        && (!flashed || (process.LastProgress?.OutTime ?? TimeSpan.Zero) < TimeSpan.FromSeconds(3.25)))
+                        && (!flashed || Stopwatch.GetTimestamp() - Interlocked.Read(ref connectedAt) < (long)(Target.TotalSeconds * Stopwatch.Frequency)))
                     {
                         var zero = Interlocked.Read(ref connectedAt);
                         var due = zero + (long)(marker.TotalSeconds * Stopwatch.Frequency);

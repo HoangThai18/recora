@@ -36,16 +36,28 @@ namespace Recora.Core.Tests.Encoding
         }
 
         [Fact]
-        public void Candidates_ForHevc_TryHevcFirstThenFallBackToH264()
+        public void Candidates_ForHevc_GpuHevcThenGpuH264ThenCpuWithX264First()
         {
             var candidates = EncoderCatalog.Candidates(GpuVendor.Nvidia, VideoCodec.Hevc);
 
-            Assert.Equal(new VideoEncoder(EncoderKind.Nvenc, VideoCodec.Hevc), candidates[0]);
-            Assert.DoesNotContain(new VideoEncoder(EncoderKind.X264, VideoCodec.Hevc), candidates);
-            var firstH264 = candidates.ToList().FindIndex(c => c.Codec == VideoCodec.H264);
-            Assert.True(firstH264 > 0);
-            Assert.All(candidates.Skip(firstH264), c => Assert.Equal(VideoCodec.H264, c.Codec));
-            Assert.Equal("libx264", candidates.Single(c => c.Kind == EncoderKind.X264).FfmpegName);
+            Assert.Equal(
+                new[] { "hevc_nvenc", "hevc_qsv", "hevc_amf", "h264_nvenc", "h264_qsv", "h264_amf", "libx264", "hevc_mf", "h264_mf" },
+                candidates.Select(c => c.FfmpegName));
+        }
+
+        [Fact]
+        public void Candidates_NeverTryACpuEncoderBeforeAGpuOne()
+        {
+            foreach (var vendor in new[] { GpuVendor.Nvidia, GpuVendor.Amd, GpuVendor.Intel, GpuVendor.Unknown })
+            {
+                foreach (var codec in new[] { VideoCodec.H264, VideoCodec.Hevc, VideoCodec.Av1 })
+                {
+                    var candidates = EncoderCatalog.Candidates(vendor, codec);
+                    var firstCpu = candidates.ToList().FindIndex(c => !c.IsHardware);
+                    Assert.All(candidates.Skip(firstCpu), c => Assert.False(c.IsHardware));
+                    Assert.Equal(EncoderKind.X264, candidates[firstCpu].Kind);
+                }
+            }
         }
 
         [Fact]

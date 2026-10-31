@@ -27,7 +27,8 @@ $videoSeconds = [double]::Parse($video[0].duration, $inv)
 $audioSeconds = [double]::Parse($audio[0].duration, $inv)
 Write-Host ("video {0:N3} s, audio {1:N3} s, file {2:N3} s" -f $videoSeconds, $audioSeconds, $duration)
 if ([math]::Abs($videoSeconds - $audioSeconds) -gt 0.15) { throw "audio ($audioSeconds s) and video ($videoSeconds s) lengths differ by more than 0.15 s" }
-if ($duration -lt 2.5 -or $duration -gt 6.0) { throw "duration $duration s is outside the 2.5-6 s sanity range" }
+# The app records 3 s of audio clock and cuts the segment there (PHASES P0 exit criterion: 3 +/- 0.5 s).
+if ([math]::Abs($duration - 3.0) -gt 0.5) { throw "duration $duration s is not 3 +/- 0.5 s" }
 
 # The test tone must really be in the file: decode to mono float and measure its RMS (a 0.2 sine gives ~0.14).
 $raw = Join-Path $out 'audio.f32'
@@ -54,8 +55,13 @@ for ($i = 0; $i -lt $bytes.Length; $i += 4) { if ([math]::Abs([BitConverter]::To
 if ($firstWhite -lt 0 -or $firstLoud -lt 0) { throw "sync markers not found (white frame $firstWhite, beep sample $firstLoud)" }
 $videoAt = $firstWhite / 30.0
 $audioAt = $firstLoud / 8000.0
-$offsetMs = ($videoAt - $audioAt) * 1000
-Write-Host ("sync: white frame at {0:N3} s, beep at {1:N3} s, video minus audio = {2:N0} ms" -f $videoAt, $audioAt, $offsetMs)
+# The app flips the board a little after the beep's due time when its UI thread is busy; that delay is measured
+# (FlashLateMilliseconds) and taken out so it can't hide a real audio delay of the same size.
+$report = Get-Content (Join-Path $out 'selftest.json') -Raw | ConvertFrom-Json
+$late = [double]$report.FlashLateMilliseconds
+if ($late -gt 50) { throw "flash was $late ms late; the sync measurement is unreliable" }
+$offsetMs = ($videoAt - $audioAt) * 1000 - $late
+Write-Host ("sync: white frame at {0:N3} s, beep at {1:N3} s, flash late {2:N0} ms, video minus audio = {3:N0} ms" -f $videoAt, $audioAt, $late, $offsetMs)
 # The flash needs a compositor frame or two to reach the screen, so video may trail a little; sound must not.
 if ($offsetMs -lt -100 -or $offsetMs -gt 150) { throw "audio/video offset $offsetMs ms is out of range" }
 

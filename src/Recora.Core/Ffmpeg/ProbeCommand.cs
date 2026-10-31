@@ -15,6 +15,8 @@ namespace Recora.Core.Ffmpeg
         // " V....D h264_nvenc           NVIDIA NVENC H.264 encoder (codec h264)" -> "h264_nvenc"
         private static readonly Regex EncoderLine = new Regex(@"^\s*[VAS][A-Z.]{5}\s+(\S+)\s", RegexOptions.Compiled);
 
+        public static FfmpegArgs Version() => new FfmpegArgs().Add("-hide_banner", "-version");
+
         public static FfmpegArgs Filters() => new FfmpegArgs().Add("-hide_banner", "-filters");
 
         public static FfmpegArgs Encoders() => new FfmpegArgs().Add("-hide_banner", "-encoders");
