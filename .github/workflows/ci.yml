@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ffmpeg:
+    name: FFmpeg tối giản
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache FFmpeg build
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: artifacts/ffmpeg
+          key: ffmpeg-${{ hashFiles('tools/ffmpeg/**') }}
+
+      - name: Set up MSYS2 UCRT64
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            make
+            diffutils
+            tar
+            xz
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-nasm
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-ffnvcodec-headers
+            mingw-w64-ucrt-x86_64-amf-headers
+            mingw-w64-ucrt-x86_64-libvpl
+            mingw-w64-ucrt-x86_64-libx264
+
+      - name: Build FFmpeg
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: bash tools/ffmpeg/build.sh
+
+      - name: Verify FFmpeg
+        shell: bash
+        run: bash tools/ffmpeg/verify.sh artifacts/ffmpeg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg
+          path: artifacts/ffmpeg
+          retention-days: 14
