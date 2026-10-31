@@ -3,7 +3,7 @@ id: P0-T04
 title: Core - lệnh ghi một đoạn, lệnh hoàn tất và đọc tiến độ FFmpeg
 phase: P0
 lane: DESKTOP
-status: todo
+status: doing
 deps: [P0-T03]
 touches: [src/Recora.Core/Ffmpeg/RecordingCommand.cs, src/Recora.Core/Ffmpeg/FinalizeCommand.cs, src/Recora.Core/Ffmpeg/ProbeCommand.cs, src/Recora.Core/Ffmpeg/ProgressParser.cs, src/Recora.Core/Recording/RecordingPlan.cs, tests/Recora.Core.Tests/Ffmpeg/RecordingCommandTests.cs, tests/Recora.Core.Tests/Ffmpeg/FinalizeCommandTests.cs, tests/Recora.Core.Tests/Ffmpeg/ProgressParserTests.cs]
 size: M
