@@ -12,6 +12,7 @@ Copy-Item (Join-Path $root 'artifacts/ffmpeg/ffmpeg.exe') $stage
 Copy-Item (Join-Path $root 'LICENSE') (Join-Path $stage 'licenses/Recora-LICENSE.txt')
 Copy-Item (Join-Path $root 'artifacts/ffmpeg/sources/COPYING.GPLv2') (Join-Path $stage 'licenses/FFmpeg-COPYING.GPLv2.txt')
 Copy-Item (Join-Path $PSScriptRoot 'THIRD-PARTY-NOTICES.txt') $stage
+Copy-Item (Join-Path $PSScriptRoot 'licenses/*') (Join-Path $stage 'licenses')
 
 $zip = Join-Path $root "artifacts/recora-$version-windows-x64-portable.zip"
 Remove-Item $zip -ErrorAction SilentlyContinue
