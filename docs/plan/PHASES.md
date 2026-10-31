@@ -5,7 +5,7 @@
 | P0 | Nền móng: solution, FFmpeg tự build, CI Windows ghi thử được | done |
 | P1 | Ghi toàn màn hình kèm tiếng, tạm dừng, phím tắt, không mất video | done |
 | P2 | Đủ các chế độ quay và công cụ đi kèm | done |
-| P3 | Phát hành trên thaipro.store | todo |
+| P3 | Phát hành trên thaipro.store | doing |
 
 ---
 
