@@ -3,7 +3,7 @@ id: P1-T02
 title: Core - phiên ghi, đặt tên file, sổ phiên và kế hoạch khôi phục
 phase: P1
 lane: DESKTOP
-status: todo
+status: doing
 deps: []
 touches: [src/Recora.Core/Recording/SessionState.cs, src/Recora.Core/Recording/SessionManifest.cs, src/Recora.Core/Recording/OutputNaming.cs, src/Recora.Core/Recording/RecoveryPlanner.cs, tests/Recora.Core.Tests/Recording/**]
 size: M
