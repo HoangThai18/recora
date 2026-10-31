@@ -6,6 +6,7 @@
     <AssemblyName>Recora</AssemblyName>
     <RootNamespace>Recora.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\recora.ico</ApplicationIcon>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -16,6 +17,12 @@
     <Reference Include="System.Drawing" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
     <ProjectReference Include="..\Recora.Core\Recora.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Recora.Core\Polyfills.cs" Link="Polyfills.cs" />
+    <EmbeddedResource Include="Assets\recora.ico" LogicalName="Recora.App.Assets.recora.ico" />
+    <EmbeddedResource Include="Assets\recora-256.png" LogicalName="Recora.App.Assets.recora-256.png" />
   </ItemGroup>
 
 </Project>

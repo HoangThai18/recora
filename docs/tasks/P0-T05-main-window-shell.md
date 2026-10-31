@@ -3,7 +3,7 @@ id: P0-T05
 title: Khung cửa sổ chính và chụp giao diện bằng --ui-screenshot
 phase: P0
 lane: DESKTOP
-status: todo
+status: review
 deps: [P0-T01]
 touches: [src/Recora.App/UI/**, src/Recora.App/Program.cs, src/Recora.App/Recora.App.csproj, src/Recora.App/Assets/**, tools/icon/**]
 size: M
@@ -16,14 +16,14 @@ Cửa sổ chính có bố cục cuối cùng (thanh chế độ, menu trái, n�
 - docs/plan/PRD.md, docs/research/competitors.md (bố cục quen thuộc)
 
 ## Sub-tasks
-- [ ] `Theme` (màu, font Segoe UI), các control vẽ tay: nút chế độ, nút Ghi, mục menu
-- [ ] `MainForm`: thanh chế độ, menu trái, vùng nội dung theo trang, thanh trạng thái
-- [ ] Icon app (`.ico` nhiều cỡ) sinh bằng script
-- [ ] `--ui-screenshot <file>` vẽ cửa sổ ra PNG rồi thoát
+- [x] `Theme` (màu, font Segoe UI), các control vẽ tay: nút chế độ, nút Ghi, mục menu
+- [x] `MainForm`: thanh chế độ, menu trái, vùng nội dung theo trang, thanh trạng thái
+- [x] Icon app (`.ico` nhiều cỡ) sinh bằng script
+- [x] `--ui-screenshot <file>` vẽ cửa sổ ra PNG rồi thoát
 
 ## Acceptance criteria
-- [ ] Build xanh; CI chụp được ảnh cửa sổ (P0-T07), chữ tiếng Việt hiện đúng dấu
-- [ ] Cửa sổ chạy ở 100% và 150% DPI không vỡ bố cục (ảnh chụp hai mức trên CI)
+- [x] Build xanh; CI chụp được ảnh cửa sổ (P0-T07), chữ tiếng Việt hiện đúng dấu
+- [x] Cửa sổ chạy ở 100% và 150% DPI không vỡ bố cục (ảnh chụp hai mức trên CI)
 
 ## Security
 None.
