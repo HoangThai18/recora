@@ -16,9 +16,12 @@ namespace Recora.App
             Application.SetCompatibleTextRenderingDefault(false);
 
             var selfTest = OptionValue(args, "--selftest");
+            var crash = OptionValue(args, "--selftest-crash");
+            var recover = OptionValue(args, "--recover");
+            var roundtrip = OptionValue(args, "--settings-roundtrip");
             var screenshot = OptionValue(args, "--ui-screenshot");
 
-            if (selfTest != null || screenshot != null)
+            if (selfTest != null || crash != null || recover != null || roundtrip != null || screenshot != null)
             {
                 // A GUI-subsystem exe has no console; borrow the caller's so CI logs show progress.
                 NativeMethods.AttachConsole(NativeMethods.AttachParentProcess);
@@ -27,6 +30,21 @@ namespace Recora.App
             if (selfTest != null)
             {
                 return SelfTest.Run(selfTest);
+            }
+
+            if (crash != null)
+            {
+                return SelfTest.Crash(crash);
+            }
+
+            if (recover != null)
+            {
+                return SelfTest.Recover(recover);
+            }
+
+            if (roundtrip != null)
+            {
+                return SelfTest.SettingsRoundtrip(roundtrip);
             }
 
             if (screenshot != null)

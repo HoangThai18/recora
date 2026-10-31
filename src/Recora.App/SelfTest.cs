@@ -25,7 +25,7 @@ namespace Recora.App
     /// encoders in app order, records about three seconds of screen plus a test tone through the audio pipe, stops with
     /// <c>q</c>, finalizes to MP4 and writes <c>selftest.json</c>. Exit code 0 only if an MP4 came out.
     /// </summary>
-    internal static class SelfTest
+    internal static partial class SelfTest
     {
         private static readonly TimeSpan Target = TimeSpan.FromSeconds(3);
 
@@ -95,6 +95,10 @@ namespace Recora.App
             report.Output = output;
             report.OutputBytes = File.Exists(output) ? new FileInfo(output).Length : 0;
             report.Ok = finalize.ExitCode == 0 && report.OutputBytes > 0 && report.SegmentExitCode == 0;
+
+            // The same recorder the app uses, with a pause in the middle.
+            RecordWithPause(directory, report);
+            report.Ok = report.Ok && report.PausedOutput != null;
         }
 
         private static RecordingPlan? FirstWorkingPlan(
@@ -257,6 +261,10 @@ namespace Recora.App
         [DataMember(Order = 20)] public bool AudioDrained { get; set; }
         [DataMember(Order = 21)] public List<string> Monitors { get; set; } = new List<string>();
         [DataMember(Order = 22)] public string? AudioDevices { get; set; }
+        [DataMember(Order = 23)] public string? PausedOutput { get; set; }
+        [DataMember(Order = 24)] public double PausedSeconds { get; set; }
+        [DataMember(Order = 25)] public string? PausedEncoder { get; set; }
+        [DataMember(Order = 26)] public int LeftoverSessions { get; set; }
         [DataMember(Order = 17)] public string? Error { get; set; }
     }
 
