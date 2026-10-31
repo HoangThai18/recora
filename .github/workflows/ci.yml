@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ffmpeg:
+    name: FFmpeg tối giản
+    runs-on: windows-latest
+    timeout-minutes: 60
+    outputs:
+      artifact: ${{ steps.name.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Artifact name
+        id: name
+        shell: bash
+        run: echo "artifact=ffmpeg-${{ hashFiles('tools/ffmpeg/**') }}" >> "$GITHUB_OUTPUT"
+
+      # actions/cache is scoped per branch; an artifact of an earlier run with the same script hash saves the
+      # 12-minute build on every new branch. Only artifacts built from this repository's own branches count: the repo
+      # is public, and a fork's pull request could otherwise upload a tampered ffmpeg.exe under the same name.
+      - name: Reuse FFmpeg from an earlier run
+        id: reuse
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.name.outputs.artifact }}
+        run: |
+          id=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=$NAME&per_page=100" \
+            --jq '[.artifacts[]
+                   | select(.expired | not)
+                   | select(.workflow_run.head_repository_id == .workflow_run.repository_id)
+                   | select(.workflow_run.head_branch == "main" or (.workflow_run.head_branch | test("^(phase|task)/")))
+                  ][0].id // empty')
+          if [ -n "$id" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$id/zip" > ffmpeg.zip
+            mkdir -p artifacts/ffmpeg
+            unzip -q ffmpeg.zip -d artifacts/ffmpeg
+            rm ffmpeg.zip
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            echo "Reused artifact $id"
+          fi
+
+      - name: Cache FFmpeg build
+        if: steps.reuse.outputs.hit != 'true'
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: artifacts/ffmpeg
+          key: ffmpeg-${{ hashFiles('tools/ffmpeg/**') }}
+
+      - name: Set up MSYS2 UCRT64
+        if: steps.reuse.outputs.hit != 'true' && steps.cache.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            make
+            diffutils
+            tar
+            xz
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-nasm
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-ffnvcodec-headers
+            mingw-w64-ucrt-x86_64-amf-headers
+            mingw-w64-ucrt-x86_64-libvpl
+            mingw-w64-ucrt-x86_64-libx264
+
+      - name: Build FFmpeg
+        if: steps.reuse.outputs.hit != 'true' && steps.cache.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: bash tools/ffmpeg/build.sh
+
+      - name: Verify FFmpeg
+        shell: bash
+        run: bash tools/ffmpeg/verify.sh artifacts/ffmpeg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name.outputs.artifact }}
+          path: artifacts/ffmpeg
+          retention-days: 30
+
+  app:
+    name: App Windows (build, test, ghi thử, đóng gói)
+    needs: ffmpeg
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build Recora.sln -c Release
+
+      - name: Unit tests
+        run: dotnet test tests/Recora.Core.Tests -c Release --no-build
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.ffmpeg.outputs.artifact }}
+          path: artifacts/ffmpeg
+
+      - name: Self-test (ghi màn hình thật 3 giây)
+        shell: pwsh
+        run: tools/ci/selftest.ps1
+
+      - name: Chụp giao diện
+        shell: pwsh
+        run: tools/ci/ui-screenshots.ps1
+
+      - name: Đóng gói zip portable
+        id: package
+        shell: pwsh
+        run: tools/ci/package.ps1
+
+      - name: Upload selftest and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest-and-screenshots
+          path: |
+            artifacts/selftest
+            artifacts/screenshots
+          retention-days: 14
+
+      - name: Upload portable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: recora-portable
+          path: ${{ steps.package.outputs.zip }}
+          retention-days: 30

@@ -3,9 +3,9 @@ id: P0-T06
 title: Chạy FFmpeg, bơm tiếng qua pipe và chế độ --selftest
 phase: P0
 lane: DESKTOP
-status: todo
+status: done
 deps: [P0-T04]
-touches: [src/Recora.Core/Audio/**, tests/Recora.Core.Tests/Audio/**, src/Recora.App/Recording/FfmpegProcess.cs, src/Recora.App/Recording/FfmpegLocator.cs, src/Recora.App/Audio/AudioPump.cs, src/Recora.App/SelfTest.cs, src/Recora.App/Program.cs, src/Recora.App/Logging/**]
+touches: [src/Recora.Core/Audio/**, tests/Recora.Core.Tests/Audio/**, src/Recora.App/Recording/FfmpegProcess.cs, src/Recora.App/Recording/FfmpegLocator.cs, src/Recora.App/Audio/AudioPump.cs, src/Recora.App/SelfTest.cs, src/Recora.App/Program.cs, src/Recora.App/Logging/**, src/Recora.App/Native/**, src/Recora.App/Recora.App.csproj]
 size: M
 ---
 
@@ -17,14 +17,14 @@ size: M
 - src/Recora.Core/Ffmpeg/RecordingCommand.cs (P0-T04)
 
 ## Sub-tasks
-- [ ] Core: `AudioRingBuffer` (độ trễ tối đa), `AudioMixer` (trộn, giới hạn biên độ) + test
-- [ ] App: `FfmpegProcess` (ẩn cửa sổ, stdin `q`, stderr → `ProgressParser`, nhật ký), `FfmpegLocator`
-- [ ] App: `AudioPump` theo `Stopwatch`, named pipe, nguồn im lặng tổng hợp
-- [ ] `--selftest <dir>`: dò bộ mã hoá, ghi 3 giây, báo cáo `selftest.json`, mã thoát 0/1
+- [x] Core: `AudioRingBuffer` (độ trễ tối đa), `AudioMixer` (trộn, giới hạn biên độ) + test
+- [x] App: `FfmpegProcess` (ẩn cửa sổ, stdin `q`, stderr → `ProgressParser`, nhật ký), `FfmpegLocator`
+- [x] App: `AudioPump` theo `Stopwatch`, named pipe, nguồn im lặng tổng hợp
+- [x] `--selftest <dir>`: dò bộ mã hoá, ghi 3 giây, báo cáo `selftest.json`, mã thoát 0/1
 
 ## Acceptance criteria
-- [ ] Test Core: bộ đệm thiếu dữ liệu thì đệm 0; vượt độ trễ tối đa thì bỏ phần cũ; trộn hai nguồn có giới hạn [-1, 1]
-- [ ] Trên CI (P0-T07): selftest ra MP4 3 ± 0,5 giây có hình và tiếng
+- [x] Test Core: bộ đệm thiếu dữ liệu thì đệm 0; vượt độ trễ tối đa thì bỏ phần cũ; trộn hai nguồn có giới hạn [-1, 1]
+- [x] Trên CI (P0-T07): selftest ra MP4 3 ± 0,5 giây có hình và tiếng
 
 ## Security
 None.
@@ -38,3 +38,6 @@ dotnet test tests/Recora.Core.Tests && dotnet build Recora.sln -c Release
 - Thiết bị WASAPI thật, tạm dừng, nhiều đoạn (P1)
 
 ## Notes / decisions
+- 2026-10-31: thêm `Native/**` (AttachConsole cho chế độ dòng lệnh, Job Object để FFmpeg chết theo Recora, MonitorFromPoint) và csproj (tham chiếu System.Runtime.Serialization cho báo cáo JSON).
+
+Review: [docs/reviews/P0-T06.md](../reviews/P0-T06.md) · PASS · merge vào phase/P0

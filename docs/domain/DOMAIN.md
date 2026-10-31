@@ -56,7 +56,7 @@ stateDiagram-v2
 | ID | Quy tắc | Ví dụ | Nguồn |
 |---|---|---|---|
 | BR-01 | Không bao giờ mất phần đã ghi: mỗi đoạn ghi vào `.mkv` (đọc được kể cả khi app hay máy tắt ngang); lần mở sau tự hoàn tất các đoạn còn sót | mất điện ở phút 40 → mở lại app có file 40 phút | suy ra từ yêu cầu |
-| BR-02 | Mặc định ghi bằng GPU; tự chọn bộ mã hoá theo hãng GPU, hỏng thì tự thử bộ kế tiếp, CPU (x264) là đường cuối | GPU Intel vẽ màn hình laptop → NVENC hỏng → QSV | người dùng: "không làm giảm fps game" |
+| BR-02 | Mặc định ghi bằng GPU; tự chọn bộ mã hoá theo hãng GPU, hỏng thì tự thử bộ kế tiếp, mọi bộ mã hoá GPU (kể cả lùi về H.264) được thử trước CPU; CPU là đường cuối, x264 trước Media Foundation | GPU Intel vẽ màn hình laptop → NVENC hỏng → QSV | người dùng: "không làm giảm fps game" |
 | BR-03 | Không logo chìm, không giới hạn thời gian ghi | | người dùng |
 | BR-04 | Phím mặc định F12 ghi/dừng, Shift+F12 tạm dừng/tiếp, F11 chụp ảnh; đổi được; phím trùng với app khác thì báo, không im lặng | | thói quen Bandicam |
 | BR-05 | Cửa sổ và viền của chính Recora không lọt vào video (trừ webcam nổi, vốn cần lọt vào) | | suy ra |

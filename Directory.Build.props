@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Product>Recora</Product>
+    <Company>thaipro.store</Company>
+    <Authors>Phan Thái</Authors>
+    <Copyright>Copyright (c) 2026 Phan Thái (thaipro.store)</Copyright>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+</Project>
