@@ -73,6 +73,9 @@ namespace Recora.App.UI
 
         public event EventHandler<CaptureModeChoice>? ModeSelected;
 
+        /// <summary>A second Recora was launched and asked this one to come to the front.</summary>
+        public event EventHandler? ShowRequested;
+
         public event EventHandler? RecordClicked;
 
         public event EventHandler? PauseClicked;
@@ -82,6 +85,9 @@ namespace Recora.App.UI
         public HomePage Home { get; }
 
         public AppStatusBar Status { get; }
+
+        /// <summary>Free space where videos are saved, at the foot of the sidebar.</summary>
+        public DiskGauge Disk { get; private set; } = null!;
 
         public RecordButton Record { get; private set; } = null!;
 
@@ -100,13 +106,58 @@ namespace Recora.App.UI
             }
         }
 
+        public PageKind CurrentPage { get; private set; }
+
         public void ShowPage(PageKind kind)
         {
+            CurrentPage = kind;
             foreach (var pair in _pages)
             {
                 pair.Value.Visible = pair.Key == kind;
                 _nav[pair.Key].Selected = pair.Key == kind;
             }
+        }
+
+        /// <summary>Swaps a page (the placeholders, once settings and the probe are ready) and keeps it shown if it was.</summary>
+        public void SetPage(PageKind kind, Page page)
+        {
+            if (_pages.TryGetValue(kind, out var old))
+            {
+                _content.Controls.Remove(old);
+                old.Dispose();
+            }
+
+            page.Visible = _nav[kind].Selected;
+            _pages[kind] = page;
+            _content.Controls.Add(page);
+        }
+
+        public T? PageOf<T>(PageKind kind)
+            where T : Page => _pages.TryGetValue(kind, out var page) ? page as T : null;
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+
+            // Windows 11: a white title bar with the app's border colour instead of the accent-coloured default.
+            // Older Windows ignores these attributes.
+            var caption = ColorRef(Theme.Surface);
+            var border = ColorRef(Theme.Border);
+            Native.NativeMethods.DwmSetWindowAttribute(Handle, Native.NativeMethods.DwmCaptionColor, ref caption, sizeof(int));
+            Native.NativeMethods.DwmSetWindowAttribute(Handle, Native.NativeMethods.DwmBorderColor, ref border, sizeof(int));
+        }
+
+        private static int ColorRef(Color color) => color.R | (color.G << 8) | (color.B << 16);
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == Platform.SingleInstance.ShowMessage && m.Msg != 0)
+            {
+                ShowRequested?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+
+            base.WndProc(ref m);
         }
 
         private void AddPage(PageKind kind, Page page)
@@ -159,10 +210,23 @@ namespace Recora.App.UI
 
         private Control BuildSidebar()
         {
+            var host = new Panel { Dock = DockStyle.Left, Width = 184, BackColor = Theme.Sidebar };
+            Disk = new DiskGauge { Dock = DockStyle.Bottom, Height = 54 };
+            var version = new Label
+            {
+                Dock = DockStyle.Bottom,
+                Height = 22,
+                Text = "Recora " + Program.Version + " · miễn phí",
+                Font = Theme.Small,
+                ForeColor = Theme.Muted,
+                BackColor = Theme.Sidebar,
+                Padding = new Padding(14, 0, 0, 0),
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
+
             var side = new FlowLayoutPanel
             {
-                Dock = DockStyle.Left,
-                Width = 184,
+                Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
                 BackColor = Theme.Sidebar,
@@ -189,7 +253,10 @@ namespace Recora.App.UI
                 side.Controls.Add(button);
             }
 
-            return side;
+            host.Controls.Add(side);
+            host.Controls.Add(version);
+            host.Controls.Add(Disk);
+            return host;
         }
 
         /// <summary>Spreads the mode tiles evenly and shrinks them (labels ellipsize) when the window is narrow.</summary>

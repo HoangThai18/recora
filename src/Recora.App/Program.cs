@@ -1,14 +1,20 @@
 using System;
 using System.Globalization;
+using System.Linq;
+using System.Threading;
 using System.Windows.Forms;
 using Recora.App.Logging;
 using Recora.App.Native;
+using Recora.App.Platform;
 using Recora.App.UI;
+using Recora.Core.Settings;
 
 namespace Recora.App
 {
     internal static class Program
     {
+        public static string Version => typeof(Program).Assembly.GetName().Version.ToString(3);
+
         [STAThread]
         private static int Main(string[] args)
         {
@@ -19,9 +25,10 @@ namespace Recora.App
             var crash = OptionValue(args, "--selftest-crash");
             var recover = OptionValue(args, "--recover");
             var roundtrip = OptionValue(args, "--settings-roundtrip");
+            var exclusion = OptionValue(args, "--selftest-exclusion");
             var screenshot = OptionValue(args, "--ui-screenshot");
 
-            if (selfTest != null || crash != null || recover != null || roundtrip != null || screenshot != null)
+            if (selfTest != null || crash != null || recover != null || roundtrip != null || exclusion != null || screenshot != null)
             {
                 // A GUI-subsystem exe has no console; borrow the caller's so CI logs show progress.
                 NativeMethods.AttachConsole(NativeMethods.AttachParentProcess);
@@ -47,30 +54,58 @@ namespace Recora.App
                 return SelfTest.SettingsRoundtrip(roundtrip);
             }
 
+            if (exclusion != null)
+            {
+                return SelfTest.Exclusion(exclusion);
+            }
+
             if (screenshot != null)
             {
                 var scale = float.Parse(OptionValue(args, "--ui-scale") ?? "1", CultureInfo.InvariantCulture);
                 var page = (PageKind)Enum.Parse(typeof(PageKind), OptionValue(args, "--page") ?? nameof(PageKind.Home), ignoreCase: true);
-                return UiScreenshot.Run(screenshot, scale, page);
+                return UiScreenshot.Run(screenshot, scale, page, OptionValue(args, "--library"), args.Contains("--recording"));
             }
 
+            return RunApp(args.Contains("--minimized"));
+        }
+
+        private static int RunApp(bool minimized)
+        {
             Log.Initialize(Log.DefaultDirectory, echoToConsole: false);
-            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-            Application.ThreadException += (_, e) => Report(e.Exception);
-            AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error("unhandled exception", e.ExceptionObject as Exception);
-            Application.Run(new MainForm());
+            using (var instance = SingleInstance.TryAcquire())
+            {
+                if (instance == null)
+                {
+                    Log.Info("Recora is already running; asked it to show its window");
+                    return 0;
+                }
+
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                Application.ThreadException += (_, e) => Report(e.Exception);
+                AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error("unhandled exception", e.ExceptionObject as Exception);
+
+                var settings = SettingsStore.Load(AppPaths.SettingsFile);
+                if (string.IsNullOrWhiteSpace(settings.OutputFolder))
+                {
+                    settings.OutputFolder = AppPaths.DefaultOutputFolder;
+                }
+
+                Log.Info($"Recora {Version} starting{(AppPaths.IsPortable ? " (portable)" : string.Empty)}, {Environment.OSVersion}");
+                using (var form = new MainForm())
+                using (var controller = new MainController(form, settings, AppPaths.SettingsFile))
+                {
+                    controller.Start(minimized);
+                    Application.Run(controller.Context);
+                }
+            }
+
             return 0;
         }
 
-        /// <summary>Details go to the log; the user only sees a Vietnamese sentence, never a stack trace.</summary>
         private static void Report(Exception error)
         {
             Log.Error("unexpected error on the UI thread", error);
-            MessageBox.Show(
-                "Recora gặp lỗi không mong muốn nhưng vẫn chạy tiếp. Chi tiết đã ghi vào nhật ký.",
-                "Recora",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
+            MessageBox.Show("Recora gặp lỗi không mong muốn nhưng vẫn chạy tiếp. Chi tiết đã ghi vào nhật ký (trang Giới thiệu).", "Recora", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private static string? OptionValue(string[] args, string name)

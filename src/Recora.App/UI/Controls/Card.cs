@@ -32,6 +32,15 @@ namespace Recora.App.UI.Controls
 
         public FlowLayoutPanel Body { get; }
 
+        /// <summary>When set, <see cref="FitHeight"/> sizes the card to its content instead of a fixed height.</summary>
+        public bool AutoHeight { get; set; }
+
+        public void FitHeight()
+        {
+            var content = Body.GetPreferredSize(new System.Drawing.Size(Width - Padding.Horizontal, 0));
+            Height = content.Height + Padding.Vertical;
+        }
+
         protected override void OnHandleCreated(System.EventArgs e)
         {
             base.OnHandleCreated(e);
