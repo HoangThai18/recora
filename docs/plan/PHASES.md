@@ -3,7 +3,7 @@
 | Phase | Mục tiêu | Trạng thái |
 |---|---|---|
 | P0 | Nền móng: solution, FFmpeg tự build, CI Windows ghi thử được | done |
-| P1 | Ghi toàn màn hình kèm tiếng, tạm dừng, phím tắt, không mất video | todo |
+| P1 | Ghi toàn màn hình kèm tiếng, tạm dừng, phím tắt, không mất video | doing |
 | P2 | Đủ các chế độ quay và công cụ đi kèm | todo |
 | P3 | Phát hành trên thaipro.store | todo |
 
@@ -47,8 +47,9 @@ Bằng chứng: [docs/reviews/P0.md](../reviews/P0.md), CI [41212947105](https:/
 **Tiêu chí ra:**
 - [ ] Selftest trên CI: hai đoạn (có tạm dừng) ghép thành một MP4, thời lượng bằng tổng
 - [ ] Test Core cho mọi bộ mã hoá × codec × nguồn
-- [ ] Giết tiến trình giữa chừng rồi mở lại: file được hoàn tất (selftest `--crash-recovery`)
-- [ ] Ảnh chụp cửa sổ chính ở các tab Video, Âm thanh, Phím tắt
+- [ ] Giết tiến trình giữa chừng rồi mở lại: file được hoàn tất (`--selftest-crash` rồi `--recover`)
+- [ ] Ảnh chụp cửa sổ chính ở các tab Video, Âm thanh, Phím tắt, Chung, Thư viện
+- [ ] Cửa sổ Recora không lọt vào video của chính nó (`--selftest-exclusion`)
 
 ---
 
