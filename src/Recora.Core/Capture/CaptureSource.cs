@@ -47,10 +47,14 @@ namespace Recora.Core.Capture
         public override PixelRect Area => Region.Intersect(Target.Bounds);
     }
 
+    /// <summary>
+    /// A top-level window. <see cref="Area"/> is clipped to its monitor: that is all a rectangle-based fallback can grab,
+    /// while gfxcapture records the window itself at its real size.
+    /// </summary>
     public sealed record WindowSource(long Hwnd, string Title, PixelRect Bounds, MonitorTarget Target) : CaptureSource
     {
         public override MonitorTarget Monitor => Target;
 
-        public override PixelRect Area => Bounds;
+        public override PixelRect Area => Bounds.Intersect(Target.Bounds);
     }
 }

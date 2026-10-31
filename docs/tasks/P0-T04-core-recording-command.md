@@ -5,7 +5,7 @@ phase: P0
 lane: DESKTOP
 status: doing
 deps: [P0-T03]
-touches: [src/Recora.Core/Ffmpeg/RecordingCommand.cs, src/Recora.Core/Ffmpeg/FinalizeCommand.cs, src/Recora.Core/Ffmpeg/ProbeCommand.cs, src/Recora.Core/Ffmpeg/ProgressParser.cs, src/Recora.Core/Recording/RecordingPlan.cs, tests/Recora.Core.Tests/Ffmpeg/RecordingCommandTests.cs, tests/Recora.Core.Tests/Ffmpeg/FinalizeCommandTests.cs, tests/Recora.Core.Tests/Ffmpeg/ProgressParserTests.cs]
+touches: [src/Recora.Core/Ffmpeg/RecordingCommand.cs, src/Recora.Core/Ffmpeg/FinalizeCommand.cs, src/Recora.Core/Ffmpeg/ProbeCommand.cs, src/Recora.Core/Ffmpeg/ProgressParser.cs, src/Recora.Core/Recording/RecordingPlan.cs, tests/Recora.Core.Tests/Ffmpeg/RecordingCommandTests.cs, tests/Recora.Core.Tests/Ffmpeg/FinalizeCommandTests.cs, tests/Recora.Core.Tests/Ffmpeg/ProgressParserTests.cs, tests/Recora.Core.Tests/Ffmpeg/ProbeCommandTests.cs, src/Recora.Core/Capture/CaptureSource.cs]
 size: M
 ---
 
@@ -28,7 +28,7 @@ Từ một kế hoạch ghi (nguồn, bộ mã hoá, chất lượng, FPS, tiế
 - [ ] Test: NVENC và AMF không có `hwdownload`; QSV có `hwmap=derive_device=qsv`; x264 có `hwdownload`
 - [ ] Test: gfxcapture có `-fps_mode cfr`; ddagrab truyền `output_idx`, `offset_x`, `offset_y`, `video_size` khi ghi vùng
 - [ ] Test: đường dẫn có dấu `'` và chữ tiếng Việt trong danh sách concat được thoát đúng
-- [ ] Test: đọc dòng `frame=  120 fps= 60 ... time=00:00:02.00 ...` ra số khung 120 và 2 giây
+- [ ] Test: đọc khối `-progress` (`frame=120`, `out_time_us=2000000`, `progress=continue`) ra số khung 120 và 2 giây
 
 ## Security
 None.
@@ -42,3 +42,5 @@ dotnet test tests/Recora.Core.Tests
 - Chạy tiến trình (P0-T06)
 
 ## Notes / decisions
+- 2026-10-31: đọc tiến độ qua `-progress pipe:1` (dòng `key=value`) thay cho dòng stats trên stderr: FFmpeg vẽ lại dòng stats bằng `\r` nên khó đọc chắc chắn.
+- 2026-10-31: thêm `src/Recora.Core/Capture/CaptureSource.cs` vào touches: `WindowSource.Area` phải cắt theo màn hình, nếu không ddagrab nhận vùng tràn ra ngoài output.
