@@ -3,7 +3,7 @@ id: P0-T07
 title: CI Windows - build app, test, selftest, kiểm bằng ffprobe, đóng gói zip
 phase: P0
 lane: INFRA
-status: todo
+status: doing
 deps: [P0-T02, P0-T05, P0-T06]
 touches: [.github/workflows/ci.yml, tools/ci/**]
 size: M
