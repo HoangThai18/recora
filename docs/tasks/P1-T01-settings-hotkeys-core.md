@@ -3,7 +3,7 @@ id: P1-T01
 title: Core - cài đặt (đọc ghi JSON, mặc định, file hỏng) và phím tắt
 phase: P1
 lane: DESKTOP
-status: todo
+status: doing
 deps: []
 touches: [src/Recora.Core/Settings/**, src/Recora.Core/Hotkeys/**, tests/Recora.Core.Tests/Settings/**, tests/Recora.Core.Tests/Hotkeys/**]
 size: M
