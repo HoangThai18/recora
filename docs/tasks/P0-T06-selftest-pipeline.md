@@ -3,7 +3,7 @@ id: P0-T06
 title: Chạy FFmpeg, bơm tiếng qua pipe và chế độ --selftest
 phase: P0
 lane: DESKTOP
-status: review
+status: done
 deps: [P0-T04]
 touches: [src/Recora.Core/Audio/**, tests/Recora.Core.Tests/Audio/**, src/Recora.App/Recording/FfmpegProcess.cs, src/Recora.App/Recording/FfmpegLocator.cs, src/Recora.App/Audio/AudioPump.cs, src/Recora.App/SelfTest.cs, src/Recora.App/Program.cs, src/Recora.App/Logging/**, src/Recora.App/Native/**, src/Recora.App/Recora.App.csproj]
 size: M
@@ -39,3 +39,5 @@ dotnet test tests/Recora.Core.Tests && dotnet build Recora.sln -c Release
 
 ## Notes / decisions
 - 2026-10-31: thêm `Native/**` (AttachConsole cho chế độ dòng lệnh, Job Object để FFmpeg chết theo Recora, MonitorFromPoint) và csproj (tham chiếu System.Runtime.Serialization cho báo cáo JSON).
+
+Review: [docs/reviews/P0-T06.md](../reviews/P0-T06.md) · PASS · merge vào phase/P0
