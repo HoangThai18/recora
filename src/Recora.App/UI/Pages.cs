@@ -172,10 +172,10 @@ namespace Recora.App.UI
 
             var details = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
             details.Controls.AddRange(new Control[] { _mode, _source, _encoder, _pickerLabel, Monitors, Devices, AudioFormats });
-            ShowPicker(PickerKind.Monitors);
             _row = new SourceRow(Preview, details) { Margin = Padding.Empty };
             source.Body.Controls.Add(_row);
             source.Body.SizeChanged += (_, _) => FitRow(source);
+            ShowPicker(PickerKind.Monitors);
 
             var audio = AddCard("âm thanh");
             SystemAudio = new ToggleSwitch("Tiếng máy (loa, tai nghe)", true) { Size = new Size(280, 30), Margin = Padding.Empty };
