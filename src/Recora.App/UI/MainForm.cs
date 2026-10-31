@@ -127,6 +127,14 @@ namespace Recora.App.UI
                 old.Dispose();
             }
 
+            // Pages built after the form scaled itself to the screen's DPI must be scaled the same way, or their
+            // 96-DPI sizes stay small while the text grows (cut buttons at 150%).
+            var factor = DeviceDpi / 96f * Theme.UiScale;
+            if (Math.Abs(factor - 1f) > 0.01f)
+            {
+                page.Scale(new SizeF(factor, factor));
+            }
+
             page.Visible = _nav[kind].Selected;
             _pages[kind] = page;
             _content.Controls.Add(page);

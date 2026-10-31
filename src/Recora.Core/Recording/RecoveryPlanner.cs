@@ -3,7 +3,8 @@ using System.Linq;
 
 namespace Recora.Core.Recording
 {
-    public sealed record LeftoverSession(string Folder, SessionManifest? Manifest, IReadOnlyDictionary<string, long> SegmentSizes);
+    /// <param name="Saved">The final file was already written (the folder just could not be removed then): only clean up.</param>
+    public sealed record LeftoverSession(string Folder, SessionManifest? Manifest, IReadOnlyDictionary<string, long> SegmentSizes, bool Saved = false);
 
     public sealed record RecoveryPlan(IReadOnlyList<(LeftoverSession Session, IReadOnlyList<string> Segments)> Finish, IReadOnlyList<string> Discard);
 
@@ -22,6 +23,12 @@ namespace Recora.Core.Recording
             {
                 if (session.Manifest == null)
                 {
+                    continue;
+                }
+
+                if (session.Saved)
+                {
+                    discard.Add(session.Folder);
                     continue;
                 }
 

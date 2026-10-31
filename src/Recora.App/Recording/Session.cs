@@ -41,22 +41,32 @@ namespace Recora.App.Recording
 
         public SessionManifest Manifest { get; }
 
-        public IReadOnlyList<FinishedSegment> Segments => _segments;
+        /// <summary>A copy: the UI timer reads it while a pause or stop adds to it on the thread pool.</summary>
+        public IReadOnlyList<FinishedSegment> Segments
+        {
+            get
+            {
+                lock (_segments)
+                {
+                    return _segments.ToList();
+                }
+            }
+        }
 
         public string? EncoderName { get; private set; }
 
         public TimeSpan Elapsed =>
-            TimeSpan.FromTicks(_segments.Sum(s => s.Duration.Ticks)) + (_process?.LastProgress?.OutTime ?? TimeSpan.Zero);
+            TimeSpan.FromTicks(Segments.Sum(s => s.Duration.Ticks)) + (_process?.LastProgress?.OutTime ?? TimeSpan.Zero);
 
-        public long Bytes => _segments.Sum(s => s.Bytes) + (_process?.LastProgress?.TotalSizeBytes ?? 0);
+        public long Bytes => Segments.Sum(s => s.Bytes) + (_process?.LastProgress?.TotalSizeBytes ?? 0);
 
         public double CurrentFps => _process?.LastProgress?.Fps ?? 0;
 
         public static Session Create(RecordingRequest request)
         {
             Directory.CreateDirectory(request.OutputFolder);
-            var free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(request.OutputFolder))!).AvailableFreeSpace;
-            if (DiskGuard.ShouldStop(free))
+            var free = Finalizer.FreeBytes(request.OutputFolder);
+            if (free.HasValue && DiskGuard.ShouldStop(free.Value))
             {
                 throw new RecoraException("disk_full", $"only {free} bytes free in {request.OutputFolder}");
             }
@@ -170,7 +180,10 @@ namespace Recora.App.Recording
             process.Dispose();
             pump.Stop();
 
-            _segments.Add(new FinishedSegment(name, audioSeconds, bytes, duration));
+            lock (_segments)
+            {
+                _segments.Add(new FinishedSegment(name, audioSeconds, bytes, duration));
+            }
             Log.Info($"segment {name} closed: {duration.TotalSeconds:0.00} s, audio {audioSeconds:0.00} s, {bytes} bytes");
         }
 

@@ -16,11 +16,18 @@ if ($process.ExitCode -ne 0) { throw "exclusion self-test exited with $($process
 $x, $y, $w, $h = $info.window -split ',' | ForEach-Object { [int]$_ }
 # Stay a few pixels inside the window so the shadow/border antialiasing at its edge doesn't count.
 $crop = "crop={0}:{1}:{2}:{3}" -f ($w - 40), ($h - 40), ($x + 20), ($y + 20)
-$gray = Join-Path $out 'window.gray'
-& $ffmpeg -v error -y -ss 1.0 -i $info.output -frames:v 1 -vf "$crop,scale=32:18,format=gray" -f rawvideo $gray
-$px = [IO.File]::ReadAllBytes($gray)
-if ($px.Length -eq 0) { throw "could not read a frame from $($info.output)" }
-$mean = ($px | Measure-Object -Average).Average
-Write-Host ("window area in the video: mean brightness {0:N1} of 255 (the window itself is light blue, about 240)" -f $mean)
-if ($mean -gt 40) { throw "Recora's window shows up in its own video (brightness $mean)" }
+
+function Get-Brightness([string]$video, [string]$name) {
+    $gray = Join-Path $out "$name.gray"
+    & $ffmpeg -v error -y -ss 1.0 -i $video -frames:v 1 -vf "$crop,scale=32:18,format=gray" -f rawvideo $gray
+    $px = [IO.File]::ReadAllBytes($gray)
+    if ($px.Length -eq 0) { throw "could not read a frame from $video" }
+    return ($px | Measure-Object -Average).Average
+}
+
+$control = Get-Brightness $info['control.output'] 'control'
+$excluded = Get-Brightness $info['excluded.output'] 'excluded'
+Write-Host ("window area: {0:N1} without the flag (light UI expected), {1:N1} with it (black expected)" -f $control, $excluded)
+if ($control -lt 150) { throw "control run: the window did not show up in the video ($control), so the check can't prove anything" }
+if ($excluded -gt 40) { throw "Recora's window shows up in its own video ($excluded)" }
 Write-Host "exclusion OK"

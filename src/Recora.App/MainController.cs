@@ -60,6 +60,8 @@ namespace Recora.App
         private DateTime _meterRetryAt;
         private IReadOnlyList<string> _videoDevices = new string[0];
         private RegionFrame? _frame;
+        private ClickHighlighter? _clicks;
+        private WebcamOverlay? _overlay;
         private bool _activeAudioOnly;
         private bool _updateAvailable;
 
@@ -128,6 +130,14 @@ namespace Recora.App
                 _settings.AudioFormat = _form.Home.AudioFormats.Value;
                 SettingsChanged();
             };
+            _form.Home.FollowMouse.CheckedChanged += (_, _) =>
+            {
+                if (!_syncingHome)
+                {
+                    _settings.RegionFollowMouse = _form.Home.FollowMouse.Checked;
+                    SettingsChanged();
+                }
+            };
             _form.SelectMode(ToChoice(_settings.Mode));
         }
 
@@ -177,7 +187,7 @@ namespace Recora.App
                 }
             };
             BuildPages();
-            if (_form.Mode == CaptureModeChoice.Device)
+            if (_form.Mode == CaptureModeChoice.Device || _settings.WebcamOverlay)
             {
                 RefreshDevices();
             }
@@ -192,8 +202,13 @@ namespace Recora.App
 
             CheckForUpdateLater();
             var ffmpeg = _environment.FfmpegPath;
-            var recovered = await Task.Run(() => RecoveryService.Finish(ffmpeg, leftovers));
-            if (recovered.Count > 0)
+            var result = await Task.Run(() => RecoveryService.Finish(ffmpeg, leftovers));
+            var recovered = result.Saved;
+            if (result.NeedSpace > 0)
+            {
+                _tray.Notify("Còn bản ghi chưa lưu được", $"{result.NeedSpace} video ghi dở lần trước cần thêm chỗ trống để lưu. Dọn bớt ổ đĩa rồi mở lại Recora.", ToolTipIcon.Warning);
+            }
+            else if (recovered.Count > 0)
             {
                 _lastSaved = new SavedRecording(recovered[recovered.Count - 1], TimeSpan.Zero, 0);
                 _tray.Notify("Đã cứu bản ghi dở", $"{recovered.Count} video bị ngắt giữa chừng lần trước đã được lưu vào thư mục video.");
@@ -210,6 +225,7 @@ namespace Recora.App
 
             _disposed = true;
             CloseFrame();
+            CloseExtras();
             _saveTimer.Dispose();
             _liveTimer.Dispose();
             _timer.Dispose();
@@ -371,7 +387,9 @@ namespace Recora.App
                 var (title, detail) = mode switch
                 {
                     CaptureModeChoice.Game => ("Game", $"Bấm {hotkey} trong game: Recora ghi đúng màn hình đang chơi · {_settings.Fps} khung/giây"),
-                    CaptureModeChoice.Region => ("Chọn vùng", $"Bấm Ghi ({hotkey}) rồi kéo chuột chọn vùng, hoặc bấm vào một cửa sổ"),
+                    CaptureModeChoice.Region => ("Chọn vùng", _settings.RegionFollowMouse
+                        ? $"Bấm Ghi ({hotkey}): khung 1280×720 đi theo con trỏ chuột"
+                        : $"Bấm Ghi ({hotkey}) rồi kéo chuột chọn vùng, hoặc bấm vào một cửa sổ"),
                     CaptureModeChoice.Window => ("Cửa sổ", $"Bấm Ghi ({hotkey}) rồi bấm cửa sổ cần ghi; video bám theo cửa sổ dù bị che"),
                     CaptureModeChoice.Device => ("Webcam", device == null ? "Chưa tìm thấy webcam hay thẻ capture nào" : device + " · kèm micro nếu bật"),
                     CaptureModeChoice.AudioOnly => ("Âm thanh", "Chỉ ghi tiếng máy và micro, không ghi hình"),
@@ -382,10 +400,12 @@ namespace Recora.App
                 {
                     CaptureModeChoice.Device => HomePage.PickerKind.Devices,
                     CaptureModeChoice.AudioOnly => HomePage.PickerKind.AudioFormats,
-                    CaptureModeChoice.Region or CaptureModeChoice.Window => HomePage.PickerKind.None,
+                    CaptureModeChoice.Region => HomePage.PickerKind.RegionOptions,
+                    CaptureModeChoice.Window => HomePage.PickerKind.None,
                     _ => HomePage.PickerKind.Monitors,
                 });
                 _form.Home.ShowDevices(_videoDevices, _settings.VideoDevice);
+                _form.Home.FollowMouse.Checked = _settings.RegionFollowMouse;
                 _form.Home.AudioFormats.Value = _settings.AudioFormat;
                 _form.Home.Preview.SetPlaceholder(
                     mode == CaptureModeChoice.Device ? IconKind.Webcam : mode == CaptureModeChoice.AudioOnly ? IconKind.Audio : IconKind.Monitor,
@@ -699,6 +719,10 @@ namespace Recora.App
                     source = new MonitorSource(GameMonitor().Target);
                     break;
 
+                case CaptureModeChoice.Region when _settings.RegionFollowMouse:
+                    source = new FollowMouseSource(MonitorAt(new Rectangle(Cursor.Position, new Size(1, 1))).Target, 1280, 720);
+                    break;
+
                 case CaptureModeChoice.Region:
                 case CaptureModeChoice.Window:
                     var pick = PickTarget(mode == CaptureModeChoice.Region ? PickKind.Region : PickKind.Window);
@@ -782,11 +806,14 @@ namespace Recora.App
                 tracks,
                 audioOnly);
 
+            var screenModes = mode != CaptureModeChoice.Device && mode != CaptureModeChoice.AudioOnly;
+            StartExtras(screenModes, source);
             _timer.Start();
             await recorder.StartAsync(request);
             if (recorder.State != SessionState.Recording)
             {
                 CloseAudio();
+                CloseExtras();
             }
             else if (frame.HasValue)
             {
@@ -806,6 +833,7 @@ namespace Recora.App
             var saved = await recorder.StopAsync();
             CloseAudio();
             CloseFrame();
+            CloseExtras();
             if (saved == null)
             {
                 return;
@@ -862,6 +890,9 @@ namespace Recora.App
             try
             {
                 var source = flow == DataFlow.Render ? WasapiSource.Loopback(device) : WasapiSource.Microphone(device);
+                var name = device.FriendlyName;
+                source.Lost += _ => _form.BeginInvoke(new Action(() =>
+                    _tray.Notify("Mất " + what, $"{name} vừa bị rút hoặc tắt. Video vẫn ghi tiếp, phần sau không có {what}.", ToolTipIcon.Warning)));
                 source.Start();
                 lock (_audio)
                 {
@@ -876,6 +907,46 @@ namespace Recora.App
                 _form.BeginInvoke(new Action(() => _tray.Notify("Không mở được " + what, $"{device.FriendlyName} đang bận hoặc bị tắt. Video vẫn ghi, chỉ thiếu {what}.", ToolTipIcon.Warning)));
                 return null;
             }
+        }
+
+        /// <summary>Click rings and the floating webcam, shown before capture starts so they are in the first frames.</summary>
+        private void StartExtras(bool screenMode, CaptureSource source)
+        {
+            CloseExtras();
+            if (!screenMode)
+            {
+                return;
+            }
+
+            if (_settings.ClickHighlight)
+            {
+                _clicks = new ClickHighlighter();
+            }
+
+            var device = _videoDevices.Contains(_settings.VideoDevice) ? _settings.VideoDevice : _videoDevices.FirstOrDefault();
+            if (_settings.WebcamOverlay && device != null && _environment != null)
+            {
+                try
+                {
+                    var screen = source.Monitor.Bounds;
+                    _overlay = new WebcamOverlay(_environment.FfmpegPath, device, new Rectangle(screen.X, screen.Y, screen.Width, screen.Height));
+                    _overlay.Show();
+                }
+                catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException)
+                {
+                    Log.Error("webcam overlay failed", error);
+                    _overlay = null;
+                }
+            }
+        }
+
+        private void CloseExtras()
+        {
+            _clicks?.Dispose();
+            _clicks = null;
+            _overlay?.Close();
+            _overlay?.Dispose();
+            _overlay = null;
         }
 
         private void CloseFrame()
@@ -931,6 +1002,7 @@ namespace Recora.App
             if (status.State == SessionState.Idle || status.State == SessionState.Failed)
             {
                 CloseFrame();
+                CloseExtras();
                 _timer.Stop();
             }
 
@@ -958,11 +1030,11 @@ namespace Recora.App
             _lastDiskCheck = DateTime.UtcNow;
             try
             {
-                var free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(OutputFolder))!).AvailableFreeSpace;
-                if (DiskGuard.ShouldStop(free))
+                var free = Finalizer.FreeBytes(OutputFolder);
+                if (free.HasValue && DiskGuard.ShouldStop(free.Value))
                 {
                     Log.Warn($"disk almost full ({free} bytes), stopping");
-                    _tray.Notify("Ổ đĩa sắp đầy", "Còn dưới 500 MB trống nên Recora đã dừng và lưu video.", ToolTipIcon.Warning);
+                    _tray.Notify("Ổ đĩa sắp đầy", "Còn dưới 500 MB trống nên Recora đã dừng ghi. Các đoạn đã ghi được giữ lại.", ToolTipIcon.Warning);
                     _ = StopRecording(recorder);
                 }
             }
@@ -1114,6 +1186,7 @@ namespace Recora.App
         {
             "disk_full" => "Ổ đĩa lưu video còn dưới 500 MB trống. Dọn bớt hoặc đổi thư mục lưu ở trang Chung.",
             "no_working_encoder" => "Không mở được bộ ghi nào trên máy này. Thử cập nhật driver card màn hình, hoặc chọn bộ mã hoá CPU ở trang Video.",
+            "finalize_no_space" => "Ổ đĩa không đủ chỗ để lưu video. Các đoạn đã ghi vẫn được giữ: dọn bớt ổ đĩa rồi mở lại Recora, video sẽ được lưu.",
             "finalize_failed" => "Không ghép được file video cuối. Các đoạn đã ghi vẫn được giữ, Recora sẽ thử lưu lại khi mở lần sau.",
             "ffmpeg_missing" => "Thiếu ffmpeg.exe cạnh Recora.exe. Hãy tải lại Recora bản đầy đủ từ thaipro.store.",
             "device_unavailable" => "Không mở được webcam: có thể app khác (Zalo, Zoom, trình duyệt) đang dùng nó. Tắt app đó rồi thử lại.",
@@ -1124,6 +1197,13 @@ namespace Recora.App
 
         private void ChooseOutputFolder(GeneralPage page)
         {
+            // Recovery and the disk check both look at the output folder: it can't move under a live recording.
+            if (Busy)
+            {
+                ShowMessage("Dừng ghi trước khi đổi thư mục lưu.", MessageBoxIcon.Information);
+                return;
+            }
+
             using (var dialog = new FolderBrowserDialog { Description = "Chọn thư mục lưu video và ảnh chụp", SelectedPath = OutputFolder, ShowNewFolderButton = true })
             {
                 if (dialog.ShowDialog(_form) != DialogResult.OK || string.IsNullOrEmpty(dialog.SelectedPath))
@@ -1232,6 +1312,13 @@ namespace Recora.App
         private async Task ExitAfterStopping()
         {
             var recorder = _recorder;
+
+            // Starting or saving takes seconds: let it finish instead of killing FFmpeg halfway.
+            for (var waited = 0; recorder != null && (recorder.State == SessionState.Starting || recorder.State == SessionState.Finalizing) && waited < 1200; waited++)
+            {
+                await Task.Delay(250);
+            }
+
             if (recorder != null && Busy)
             {
                 ShowWindow();

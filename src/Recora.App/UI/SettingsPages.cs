@@ -243,7 +243,7 @@ namespace Recora.App.UI
             folder.Body.Controls.Add(_folder);
             var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
             ChangeFolder = new FlatButton("Đổi thư mục…") { Size = new Size(150, 34), Margin = new Padding(0, 0, 10, 0) };
-            OpenFolder = new FlatButton("Mở thư mục") { Size = new Size(130, 34) };
+            OpenFolder = new FlatButton("Mở thư mục") { Size = new Size(130, 34), Margin = Padding.Empty };
             buttons.Controls.Add(ChangeFolder);
             buttons.Controls.Add(OpenFolder);
             folder.Body.Controls.Add(buttons);
@@ -255,6 +255,9 @@ namespace Recora.App.UI
 
             var recording = AddCard("khi ghi");
             recording.Body.Controls.Add(Toggle("Đếm ngược 3 giây trước khi ghi", settings.Countdown, v => settings.Countdown = v));
+            recording.Body.Controls.Add(Toggle("Hiện vòng tròn chỗ bấm chuột", settings.ClickHighlight, v => settings.ClickHighlight = v));
+            recording.Body.Controls.Add(Toggle("Webcam nổi ở góc màn hình khi ghi", settings.WebcamOverlay, v => settings.WebcamOverlay = v));
+            recording.Body.Controls.Add(Caption("Webcam nổi dùng webcam chọn ở chế độ Webcam; kéo để đổi chỗ. Vòng tròn và webcam nổi có trong video.", Theme.Small, Theme.Muted, 12));
             Row(recording, "Tự dừng sau", Choice(settings.AutoStopMinutes, v => settings.AutoStopMinutes = v,
                 (0, "Không"), (5, "5 phút"), (10, "10 phút"), (30, "30 phút"), (60, "1 giờ"), (120, "2 giờ")),
                 "Hữu ích khi ghi một buổi học hay trận đấu rồi để máy chạy.");
