@@ -3,7 +3,7 @@ id: P3-T02
 title: Phát hành recora-0.1.0 và đăng lên thaipro.store/phan-mem/recora
 phase: P3
 lane: QA
-status: todo
+status: doing
 deps: [P3-T01]
 touches: [docs/**, "thaidev: config/software.php", "thaidev: public/assets/phan-mem/recora*"]
 size: S
