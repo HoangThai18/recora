@@ -131,7 +131,7 @@ namespace Recora.App.UI
             Record.Click += (_, _) => RecordClicked?.Invoke(this, EventArgs.Empty);
             actions.Controls.AddRange(new Control[] { Screenshot, Pause, Record });
 
-            var modes = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, BackColor = Theme.Surface, Padding = new Padding(4, 0, 0, 0) };
+            var modes = new ModeBar { Dock = DockStyle.Fill, BackColor = Theme.Surface, Padding = new Padding(4, 0, 4, 0) };
             AddMode(modes, CaptureModeChoice.FullScreen, IconKind.Monitor, "Toàn màn hình");
             AddMode(modes, CaptureModeChoice.Region, IconKind.Region, "Chọn vùng");
             AddMode(modes, CaptureModeChoice.Window, IconKind.Window, "Cửa sổ");
@@ -145,7 +145,7 @@ namespace Recora.App.UI
             return bar;
         }
 
-        private void AddMode(FlowLayoutPanel host, CaptureModeChoice mode, IconKind icon, string label)
+        private void AddMode(Control host, CaptureModeChoice mode, IconKind icon, string label)
         {
             var button = new ModeButton(icon, label) { Size = new Size(94, 64), Margin = new Padding(0) };
             button.Click += (_, _) =>
@@ -190,6 +190,31 @@ namespace Recora.App.UI
             }
 
             return side;
+        }
+
+        /// <summary>Spreads the mode tiles evenly and shrinks them (labels ellipsize) when the window is narrow.</summary>
+        private sealed class ModeBar : Panel
+        {
+            protected override void OnLayout(LayoutEventArgs levent)
+            {
+                base.OnLayout(levent);
+                var tiles = Controls.OfType<ModeButton>().ToList();
+                if (tiles.Count == 0)
+                {
+                    return;
+                }
+
+                var dpi = DeviceDpi / 96f * Theme.UiScale;
+                var available = ClientSize.Width - Padding.Horizontal;
+                var width = Math.Max((int)(56 * dpi), Math.Min((int)(94 * dpi), available / tiles.Count));
+                var height = (int)(64 * dpi);
+                var top = Math.Max(0, (ClientSize.Height - height) / 2);
+
+                for (var i = 0; i < tiles.Count; i++)
+                {
+                    tiles[i].Bounds = new Rectangle(Padding.Left + i * width, top, width, height);
+                }
+            }
         }
 
         /// <summary>The app icon and name in the top-left corner.</summary>

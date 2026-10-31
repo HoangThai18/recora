@@ -142,9 +142,8 @@ namespace Recora.App.UI
 
         private static HotkeyHint Hint(string keys, string action)
         {
-            var hint = new HotkeyHint(keys, action) { Margin = new Padding(0, 0, 18, 0) };
-            hint.Size = hint.GetPreferredSize(Size.Empty);
-            return hint;
+            // AutoSize: measured after DPI scaling; a size computed here would be scaled a second time.
+            return new HotkeyHint(keys, action) { Margin = new Padding(0, 0, 18, 0), AutoSize = true };
         }
     }
 
