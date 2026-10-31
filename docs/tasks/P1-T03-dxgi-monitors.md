@@ -3,7 +3,7 @@ id: P1-T03
 title: Liệt kê màn hình qua DXGI và chọn đường bắt hình cho từng màn hình
 phase: P1
 lane: DESKTOP
-status: done
+status: review
 deps: []
 touches: [src/Recora.App/Native/Dxgi.cs, src/Recora.App/Platform/MonitorService.cs]
 size: M
