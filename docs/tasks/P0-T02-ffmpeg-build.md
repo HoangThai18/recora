@@ -3,7 +3,7 @@ id: P0-T02
 title: Script build FFmpeg 8.1.3 tối giản và job CI có cache
 phase: P0
 lane: INFRA
-status: review
+status: done
 deps: []
 touches: [tools/ffmpeg/**, .github/workflows/ci.yml]
 size: M
@@ -37,3 +37,5 @@ Xem log job `ffmpeg` trên GitHub Actions.
 
 ## Notes / decisions
 `gfxcapture` cần header WinRT của mingw-w64; không có thì để tắt, ghi lại trong log.
+
+Review: [docs/reviews/P0-T02.md](../reviews/P0-T02.md) · PASS · merge vào phase/P0
