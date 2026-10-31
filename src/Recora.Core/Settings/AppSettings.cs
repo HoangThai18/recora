@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.Serialization;
 using Recora.Core.Encoding;
+using Recora.Core.Ffmpeg;
 using Recora.Core.Recording;
 
 namespace Recora.Core.Settings
@@ -95,6 +96,19 @@ namespace Recora.Core.Settings
 
         [DataMember(Name = "encoderProbe", Order = 28)] public EncoderProbeCache? EncoderProbe { get; set; }
 
+        /// <summary>The DirectShow name of the webcam or capture card for the "Webcam" mode; empty means the first one.</summary>
+        [DataMember(Name = "videoDevice", Order = 29)] public string VideoDevice { get; set; } = string.Empty;
+
+        public AudioFormat AudioFormat { get; set; } = AudioFormat.M4a;
+
+        /// <summary>Stop by itself after this many minutes; 0 never.</summary>
+        [DataMember(Name = "autoStopMinutes", Order = 31)] public int AutoStopMinutes { get; set; }
+
+        [DataMember(Name = "screenshotSound", Order = 32)] public bool ScreenshotSound { get; set; } = true;
+
+        [DataMember(Name = "audioFormat", Order = 30)]
+        private string AudioFormatText { get => AudioFormat.ToString(); set => AudioFormat = Parse(value, AudioFormat.M4a); }
+
         [DataMember(Name = "outputFolder", Order = 0)]
         private string OutputFolderText { get => OutputFolder; set => OutputFolder = value ?? string.Empty; }
 
@@ -131,6 +145,8 @@ namespace Recora.Core.Settings
             MonitorDevice ??= string.Empty;
             SystemAudioDevice ??= string.Empty;
             MicrophoneDevice ??= string.Empty;
+            VideoDevice ??= string.Empty;
+            AutoStopMinutes = Math.Max(0, Math.Min(24 * 60, AutoStopMinutes));
             return this;
         }
 

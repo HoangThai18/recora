@@ -1,3 +1,4 @@
+using Recora.Core.Ffmpeg;
 using System.IO;
 using Recora.Core.Encoding;
 using Recora.Core.Hotkeys;
@@ -57,6 +58,19 @@ namespace Recora.Core.Tests.Settings
             Assert.Equal("F12", settings.HotkeyRecord);
         }
 
+        [Fact]
+        public void Load_NewFieldsFromAnOlderFile_GetDefaults_AndBadValuesAreFixed()
+        {
+            File.WriteAllText(SettingsPath, "{\"audioFormat\":\"Flac\",\"autoStopMinutes\":-5}");
+
+            var settings = SettingsStore.Load(SettingsPath);
+
+            Assert.Equal(AudioFormat.M4a, settings.AudioFormat);
+            Assert.Equal(0, settings.AutoStopMinutes);
+            Assert.Equal(string.Empty, settings.VideoDevice);
+            Assert.True(settings.ScreenshotSound);
+        }
+
         [Theory]
         [InlineData(0, AppSettings.MinFps)]
         [InlineData(999, AppSettings.MaxFps)]
@@ -86,6 +100,10 @@ namespace Recora.Core.Tests.Settings
                 SeparateTracks = true,
                 HotkeyRecord = "Ctrl+Shift+R",
                 ScreenshotFormat = ScreenshotFormat.Jpg,
+                VideoDevice = "HD Pro Webcam C920",
+                AudioFormat = AudioFormat.Mp3,
+                AutoStopMinutes = 30,
+                ScreenshotSound = false,
                 EncoderProbe = new EncoderProbeCache { Fingerprint = "10de:2684|8.1.3", Working = new[] { "h264_nvenc" } },
             };
 
@@ -106,6 +124,10 @@ namespace Recora.Core.Tests.Settings
             Assert.True(loaded.SeparateTracks);
             Assert.Equal("Ctrl+Shift+R", loaded.HotkeyRecord);
             Assert.Equal(ScreenshotFormat.Jpg, loaded.ScreenshotFormat);
+            Assert.Equal("HD Pro Webcam C920", loaded.VideoDevice);
+            Assert.Equal(AudioFormat.Mp3, loaded.AudioFormat);
+            Assert.Equal(30, loaded.AutoStopMinutes);
+            Assert.False(loaded.ScreenshotSound);
             Assert.Equal(new[] { "h264_nvenc" }, loaded.EncoderProbe!.Working);
             Assert.False(File.Exists(SettingsPath + ".tmp"));
         }

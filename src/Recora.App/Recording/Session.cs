@@ -8,6 +8,7 @@ using System.Threading;
 using Recora.App.Audio;
 using Recora.App.Logging;
 using Recora.Core;
+using Recora.Core.Encoding;
 using Recora.Core.Ffmpeg;
 using Recora.Core.Recording;
 
@@ -66,14 +67,15 @@ namespace Recora.App.Recording
             Directory.CreateDirectory(folder);
             File.SetAttributes(Path.Combine(request.OutputFolder, ".recora"), FileAttributes.Directory | FileAttributes.Hidden);
 
-            var output = OutputNaming.Unique(request.OutputFolder, OutputNaming.BaseName(now), FinalizeCommand.Extension(request.Container), File.Exists);
+            var extension = request.AudioOnly is AudioFormat audio ? AudioRecordingCommand.Extension(audio) : FinalizeCommand.Extension(request.Container);
+            var output = OutputNaming.Unique(request.OutputFolder, OutputNaming.BaseName(now), extension, File.Exists);
             var manifest = new SessionManifest
             {
                 Id = id,
                 StartedAt = now.ToString("o", CultureInfo.InvariantCulture),
                 OutputPath = output,
-                Container = request.Container.ToString(),
-                Codec = request.Codec.ToString(),
+                Container = request.AudioOnly?.ToString() ?? request.Container.ToString(),
+                Codec = request.AudioOnly == null ? request.Codec.ToString() : "Audio",
             };
             manifest.Save(folder);
             Log.Info($"session {id}: {request.Source} -> {output}");
@@ -81,7 +83,22 @@ namespace Recora.App.Recording
         }
 
         /// <summary>Starts a segment with this plan. Returns null when frames flow, otherwise why it failed.</summary>
-        public string? TryOpenSegment(string ffmpeg, RecordingPlan plan, TimeSpan firstFrameTimeout)
+        public string? TryOpenSegment(string ffmpeg, RecordingPlan plan, TimeSpan firstFrameTimeout) =>
+            TryOpen(ffmpeg, (path, pipes) => RecordingCommand.Build(plan, path, pipes), $"{plan.Backend}/{plan.Encoder.FfmpegName}", plan.Encoder.FfmpegName, audioOnly: false, firstFrameTimeout);
+
+        /// <summary>Starts a sound-only segment (one mixed track). Returns null once audio flows.</summary>
+        public string? TryOpenAudioSegment(string ffmpeg, AudioFormat format, QualityPreset quality, TimeSpan timeout)
+        {
+            if (Request.AudioTracks.Count != 1)
+            {
+                return "sound-only recording needs exactly one mixed track, got " + Request.AudioTracks.Count;
+            }
+
+            var codec = AudioRecordingCommand.Codec(format, quality)[1];
+            return TryOpen(ffmpeg, (path, pipes) => AudioRecordingCommand.Build(pipes[0], format, quality, path), "audio/" + codec, codec, audioOnly: true, timeout);
+        }
+
+        private string? TryOpen(string ffmpeg, Func<string, IReadOnlyList<string>, FfmpegArgs> command, string label, string encoder, bool audioOnly, TimeSpan firstFrameTimeout)
         {
             var name = SessionManifest.SegmentName(Manifest.Segments.Count);
             var path = Path.Combine(Folder, name);
@@ -90,25 +107,28 @@ namespace Recora.App.Recording
 
             var pump = new AudioPump(Request.AudioTracks);
             pump.Start();
-            var process = FfmpegProcess.Start(ffmpeg, RecordingCommand.Build(plan, path, pump.PipePaths), "seg " + name);
+            var process = FfmpegProcess.Start(ffmpeg, command(path, pump.PipePaths), "seg " + name);
             var clock = Stopwatch.StartNew();
 
-            while (!process.HasExited && clock.Elapsed < firstFrameTimeout && (process.LastProgress?.Frame ?? 0) == 0)
+            // Video is live once a frame is encoded; sound-only output has no frames, so time must move instead.
+            bool Flowing() => (process.LastProgress?.Frame ?? 0) > 0 || (audioOnly && (process.LastProgress?.OutTime ?? TimeSpan.Zero) > TimeSpan.Zero);
+
+            while (!process.HasExited && clock.Elapsed < firstFrameTimeout && !Flowing())
             {
                 Thread.Sleep(50);
             }
 
-            if (!process.HasExited && (process.LastProgress?.Frame ?? 0) > 0)
+            if (!process.HasExited && Flowing())
             {
                 _process = process;
                 _pump = pump;
                 _segmentName = name;
-                EncoderName = plan.Encoder.FfmpegName;
-                Log.Info($"segment {name} recording with {plan.Backend}/{plan.Encoder.FfmpegName}");
+                EncoderName = encoder;
+                Log.Info($"segment {name} recording with {label}");
                 return null;
             }
 
-            var reason = process.HasExited ? LastLine(process.ErrorTail) : "no frame within " + firstFrameTimeout.TotalSeconds + " s";
+            var reason = process.HasExited ? LastLine(process.ErrorTail) : (audioOnly ? "no audio" : "no frame") + " within " + firstFrameTimeout.TotalSeconds + " s";
             process.Kill();
             process.WaitForExit(TimeSpan.FromSeconds(5));
             process.Dispose();

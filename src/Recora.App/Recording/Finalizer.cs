@@ -23,6 +23,7 @@ namespace Recora.App.Recording
                 return null;
             }
 
+            var audioOnly = Enum.TryParse<AudioFormat>(manifest.Container, out var audioFormat);
             var format = Enum.TryParse<ContainerFormat>(manifest.Container, out var container) ? container : ContainerFormat.Mp4;
             var codec = Enum.TryParse<VideoCodec>(manifest.Codec, out var parsed) ? parsed : VideoCodec.H264;
             var output = manifest.OutputPath;
@@ -38,7 +39,8 @@ namespace Recora.App.Recording
             // Generous timeout: copying streams is disk-bound, about a second per gigabyte on an SSD.
             var bytes = usable.Sum(s => s.Bytes);
             var timeout = TimeSpan.FromSeconds(60 + bytes / (20L * 1024 * 1024));
-            var run = FfmpegProcess.Run(ffmpeg, FinalizeCommand.Build(list, output, format, codec), timeout);
+            var command = audioOnly ? FinalizeCommand.BuildAudio(list, output, audioFormat) : FinalizeCommand.Build(list, output, format, codec);
+            var run = FfmpegProcess.Run(ffmpeg, command, timeout);
 
             if (run.ExitCode != 0 || !File.Exists(output) || new FileInfo(output).Length == 0)
             {
