@@ -40,12 +40,16 @@ namespace Recora.App.Audio
         public void Reset() => Buffer.Clear();
     }
 
-    /// <summary>A quiet sine tone: proves in tests that audio really flows end to end.</summary>
+    /// <summary>
+    /// A sine tone for tests. With <see cref="OnsetFrame"/> set it stays silent until that many frames after the pipe
+    /// connected, which lets the selftest put a beep at a known moment and measure audio/video sync against a flash.
+    /// </summary>
     internal sealed class ToneInput : IAudioInput
     {
         private readonly double _step;
         private readonly float _amplitude;
         private double _phase;
+        private long _frame;
 
         public ToneInput(double frequency, float amplitude)
         {
@@ -53,11 +57,13 @@ namespace Recora.App.Audio
             _amplitude = amplitude;
         }
 
+        public long OnsetFrame { get; set; }
+
         public void Read(float[] stereo, int frames)
         {
-            for (var f = 0; f < frames; f++)
+            for (var f = 0; f < frames; f++, _frame++)
             {
-                var sample = (float)(Math.Sin(_phase) * _amplitude);
+                var sample = _frame >= OnsetFrame ? (float)(Math.Sin(_phase) * _amplitude) : 0f;
                 stereo[f * 2] = sample;
                 stereo[f * 2 + 1] = sample;
                 _phase += _step;
@@ -66,9 +72,7 @@ namespace Recora.App.Audio
             _phase %= 2 * Math.PI;
         }
 
-        public void Reset()
-        {
-        }
+        public void Reset() => _frame = 0;
     }
 
     internal sealed record AudioTrackSpec(string Name, IReadOnlyList<(IAudioInput Input, float Gain)> Inputs);
@@ -92,6 +96,9 @@ namespace Recora.App.Audio
         }
 
         public event Action<string, Exception>? Failed;
+
+        /// <summary>Raised on the pump thread when FFmpeg opens a track's pipe: that track's time zero (Stopwatch ticks).</summary>
+        public event Action<string, long>? Connected;
 
         /// <summary>Paths for FFmpeg's <c>-i</c>, in track order.</summary>
         public IReadOnlyList<string> PipePaths => _workers.Select(w => @"\\.\pipe\" + w.PipeName).ToList();
@@ -172,7 +179,9 @@ namespace Recora.App.Audio
                         input.Reset();
                     }
 
-                    Pump();
+                    var clock = Stopwatch.StartNew();
+                    _owner.Connected?.Invoke(_track.Name, Stopwatch.GetTimestamp());
+                    Pump(clock);
                 }
                 catch (Exception error) when ((_owner._stopping || _owner._endExpected) && (error is IOException || error is ObjectDisposedException || error is OperationCanceledException))
                 {
@@ -185,10 +194,9 @@ namespace Recora.App.Audio
                 }
             }
 
-            private void Pump()
+            private void Pump(Stopwatch clock)
             {
                 var pacer = new AudioPacer(RecordingCommand.AudioSampleRate, ChunkFrames);
-                var clock = Stopwatch.StartNew();
                 var mix = new float[ChunkFrames * 2];
                 var scratch = new float[ChunkFrames * 2];
                 var bytes = new byte[ChunkFrames * 2 * sizeof(float)];
