@@ -56,10 +56,10 @@ Bằng chứng: [docs/reviews/P0.md](../reviews/P0.md), CI [41212947105](https:/
 ## P2: Đủ chế độ quay
 **Mục tiêu:** đủ các chế độ của một app quay màn hình: vùng, cửa sổ, game, thiết bị, chỉ âm thanh, quanh con trỏ, cùng chụp ảnh, webcam nổi, hiệu ứng click, tự dừng. Hẹn giờ bắt đầu ghi để bản sau.
 
-**Tiêu chí ra:**
-- [ ] Mỗi chế độ có test Core cho lệnh FFmpeg và chạy được trong selftest (trừ thiết bị: runner không có webcam)
-- [ ] Viền chọn vùng và cửa sổ Recora không lọt vào video (`WDA_EXCLUDEFROMCAPTURE`)
-- [ ] Chụp ảnh ra PNG đúng kích thước nguồn
+**Tiêu chí ra:** (bằng chứng: CI [41217105656](https://github.com/HoangThai18/recora/actions/runs/41217105656), docs/reviews/P2-T0*.md)
+- [x] Mỗi chế độ có test Core cho lệnh FFmpeg và chạy được trong selftest (trừ thiết bị: runner không có webcam)
+- [x] Viền chọn vùng và cửa sổ Recora không lọt vào video (`WDA_EXCLUDEFROMCAPTURE`)
+- [x] Chụp ảnh ra PNG đúng kích thước nguồn
 
 **Rủi ro:** `gfxcapture` có thể không build được; quanh con trỏ tốn CPU hơn.
 
