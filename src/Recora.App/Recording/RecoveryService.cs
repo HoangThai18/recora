@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Recora.App.Logging;
+using Recora.Core;
 using Recora.Core.Recording;
 
 namespace Recora.App.Recording
@@ -11,6 +12,9 @@ namespace Recora.App.Recording
     /// At startup, finishes recordings a crash or power cut left as segments (BR-01). Segments written by a killed
     /// FFmpeg lack their index, which the stream-copy remux rebuilds.
     /// </summary>
+    /// <param name="NeedSpace">Recordings kept as segments because the drive is too full to join them.</param>
+    internal sealed record RecoveryResult(IReadOnlyList<string> Saved, int NeedSpace);
+
     internal static class RecoveryService
     {
         /// <summary>Finds what a crash left behind. Fast; call it before recording can start, so a new session's folder is never mistaken for a leftover.</summary>
@@ -29,7 +33,8 @@ namespace Recora.App.Recording
                     .Select(folder => new LeftoverSession(
                         folder,
                         SessionManifest.TryLoad(folder),
-                        Directory.GetFiles(folder, "*.mkv").ToDictionary(f => Path.GetFileName(f), f => new FileInfo(f).Length, StringComparer.OrdinalIgnoreCase)))
+                        Directory.GetFiles(folder, "*.mkv").ToDictionary(f => Path.GetFileName(f), f => new FileInfo(f).Length, StringComparer.OrdinalIgnoreCase),
+                        File.Exists(Path.Combine(folder, SessionManifest.SavedMarker))))
                     .ToList();
 
                 return RecoveryPlanner.Plan(leftovers);
@@ -42,13 +47,21 @@ namespace Recora.App.Recording
         }
 
         /// <summary>Remuxes every recoverable session into its final file (slow, disk-bound) and removes empty ones.</summary>
-        public static IReadOnlyList<string> Finish(string ffmpeg, RecoveryPlan plan)
+        public static RecoveryResult Finish(string ffmpeg, RecoveryPlan plan)
         {
             var recovered = new List<string>();
+            var needSpace = 0;
 
             foreach (var folder in plan.Discard)
             {
-                TryDelete(folder);
+                if (File.Exists(Path.Combine(folder, SessionManifest.SavedMarker)))
+                {
+                    TryClean(folder);
+                }
+                else
+                {
+                    TryDelete(folder);
+                }
             }
 
             foreach (var (session, segments) in plan.Finish)
@@ -62,16 +75,33 @@ namespace Recora.App.Recording
                         recovered.Add(output);
                     }
                 }
+                catch (RecoraException error) when (error.Code == "finalize_no_space")
+                {
+                    Log.Warn("recovery postponed, not enough space: " + session.Folder);
+                    needSpace++;
+                }
                 catch (Exception error)
                 {
                     Log.Error("recovery failed for " + session.Folder, error);
                 }
             }
 
-            return recovered;
+            return new RecoveryResult(recovered, needSpace);
         }
 
-        public static IReadOnlyList<string> RecoverAll(string ffmpeg, string outputFolder) => Finish(ffmpeg, Scan(outputFolder));
+        public static RecoveryResult RecoverAll(string ffmpeg, string outputFolder) => Finish(ffmpeg, Scan(outputFolder));
+
+        private static void TryClean(string folder)
+        {
+            try
+            {
+                Finalizer.CleanSavedFolder(folder);
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            {
+                Log.Warn("could not clean " + folder + ": " + error.Message);
+            }
+        }
 
         private static void TryDelete(string folder)
         {

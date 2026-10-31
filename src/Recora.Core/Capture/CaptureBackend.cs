@@ -10,6 +10,9 @@ namespace Recora.Core.Capture
 
         /// <summary>GDI BitBlt: CPU only and slow, the last resort (remote desktop, broken drivers).</summary>
         Gdigrab,
+
+        /// <summary>DirectShow: webcams and capture cards, frames in system memory.</summary>
+        Dshow,
     }
 
     /// <summary>Which capture filters the bundled ffmpeg.exe has, plus whether GPU capture already failed this session.</summary>
@@ -22,6 +25,11 @@ namespace Recora.Core.Capture
     {
         public static CaptureBackend Select(CaptureSource source, CaptureCapabilities caps)
         {
+            if (source is DeviceSource)
+            {
+                return CaptureBackend.Dshow;
+            }
+
             if (caps.GpuCaptureFailed)
             {
                 return CaptureBackend.Gdigrab;

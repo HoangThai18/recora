@@ -50,6 +50,7 @@ namespace Recora.App.Recording
                 return null;
             }
 
+            var audioOnly = Enum.TryParse<AudioFormat>(manifest.Container, out var audioFormat);
             var format = Enum.TryParse<ContainerFormat>(manifest.Container, out var container) ? container : ContainerFormat.Mp4;
             var codec = Enum.TryParse<VideoCodec>(manifest.Codec, out var parsed) ? parsed : VideoCodec.H264;
             var output = manifest.OutputPath;
@@ -75,7 +76,8 @@ namespace Recora.App.Recording
             // kill mid-copy never leaves a half file where the user looks.
             var partial = Path.Combine(folder, "final.part");
             var timeout = TimeSpan.FromSeconds(60 + bytes / (20L * 1024 * 1024));
-            var run = FfmpegProcess.Run(ffmpeg, FinalizeCommand.Build(list, partial, format, codec), timeout);
+            var command = audioOnly ? FinalizeCommand.BuildAudio(list, partial, audioFormat) : FinalizeCommand.Build(list, partial, format, codec);
+            var run = FfmpegProcess.Run(ffmpeg, command, timeout);
 
             if (run.ExitCode != 0 || !File.Exists(partial) || new FileInfo(partial).Length == 0)
             {
@@ -87,19 +89,53 @@ namespace Recora.App.Recording
             File.Move(partial, output);
             Log.Info($"saved {output} ({new FileInfo(output).Length} bytes, {usable.Count} segment(s){(recovered ? ", recovered" : string.Empty)})");
 
-            // The video is saved: failing to tidy up (antivirus holding a segment) must not turn it into an error,
-            // but the manifest goes first so recovery never makes a second copy.
-            TryDeleteFile(Path.Combine(folder, SessionManifest.FileName));
+            // The video is saved: failing to tidy up (antivirus holding a segment) must not turn it into an error.
+            // The marker tells the next scan to just delete the folder, never to join it a second time.
             try
             {
-                Directory.Delete(folder, recursive: true);
+                File.WriteAllText(Path.Combine(folder, SessionManifest.SavedMarker), output);
             }
             catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
             {
-                Log.Warn("session folder left behind: " + error.Message);
+                TryDeleteFile(Path.Combine(folder, SessionManifest.FileName));
             }
 
+            CleanSavedFolder(folder);
             return output;
+        }
+
+        /// <summary>
+        /// Segments and scratch files go first; the manifest and the marker last, so a folder that can't be emptied
+        /// (a segment held open by antivirus) still says "saved" and the next scan only deletes it again.
+        /// </summary>
+        public static void CleanSavedFolder(string folder)
+        {
+            foreach (var file in Directory.GetFiles(folder))
+            {
+                var name = Path.GetFileName(file);
+                if (name != SessionManifest.FileName && name != SessionManifest.SavedMarker)
+                {
+                    TryDeleteFile(file);
+                }
+            }
+
+            if (Directory.GetFiles(folder).Length <= 2)
+            {
+                TryDeleteFile(Path.Combine(folder, SessionManifest.FileName));
+                TryDeleteFile(Path.Combine(folder, SessionManifest.SavedMarker));
+                try
+                {
+                    Directory.Delete(folder, recursive: true);
+                }
+                catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+                {
+                    Log.Warn("session folder left behind: " + error.Message);
+                }
+            }
+            else
+            {
+                Log.Warn("session folder kept for the next start to clean: " + folder);
+            }
         }
     }
 }

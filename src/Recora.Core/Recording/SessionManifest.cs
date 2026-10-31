@@ -16,6 +16,9 @@ namespace Recora.Core.Recording
     {
         public const string FileName = "session.json";
 
+        /// <summary>Written once the final file is in place, before the folder is removed.</summary>
+        public const string SavedMarker = "saved";
+
         private static readonly DataContractJsonSerializer Serializer = new DataContractJsonSerializer(typeof(SessionManifest));
 
         [DataMember(Name = "id", Order = 0)] public string Id { get; set; } = string.Empty;

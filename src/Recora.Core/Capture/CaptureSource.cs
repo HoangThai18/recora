@@ -57,4 +57,16 @@ namespace Recora.Core.Capture
 
         public override PixelRect Area => Bounds.Intersect(Target.Bounds);
     }
+
+    /// <summary>
+    /// A webcam or capture card through DirectShow. <see cref="Size"/> is what the device usually sends (used to cap
+    /// the bitrate); the frames themselves are evened and scaled by the filter whatever size really arrives.
+    /// <see cref="Target"/> only decides which GPU encodes: the primary monitor's.
+    /// </summary>
+    public sealed record DeviceSource(string DeviceName, PixelRect Size, MonitorTarget Target) : CaptureSource
+    {
+        public override MonitorTarget Monitor => Target;
+
+        public override PixelRect Area => Size;
+    }
 }

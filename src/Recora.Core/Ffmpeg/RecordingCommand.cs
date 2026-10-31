@@ -96,14 +96,28 @@ namespace Recora.Core.Ffmpeg
                 case CaptureBackend.Gfxcapture:
                     return new[] { "-probesize", "32", "-analyzeduration", "0", "-f", "lavfi", "-i", GfxcaptureSource(plan, fps, cursor) };
 
-                default:
+                case CaptureBackend.Dshow:
+                    // The device keeps its own size and rate (asking for one it lacks fails to open); the filter evens
+                    // and scales. A big real-time buffer absorbs hiccups instead of dropping frames.
+                    var device = (DeviceSource)plan.Source;
                     return new[]
+                    {
+                        "-thread_queue_size", "512", "-rtbufsize", "256M", "-probesize", "32", "-analyzeduration", "0",
+                        "-f", "dshow", "-i", "video=" + device.DeviceName,
+                    };
+
+                default:
+                    var gdi = new List<string>
                     {
                         "-thread_queue_size", "512", "-probesize", "32", "-analyzeduration", "0",
                         "-f", "gdigrab", "-framerate", fps, "-draw_mouse", cursor,
+                    };
+                    gdi.AddRange(new[]
+                    {
                         "-offset_x", Invariant($"{area.X}"), "-offset_y", Invariant($"{area.Y}"),
                         "-video_size", Invariant($"{area.Width}x{area.Height}"), "-i", "desktop",
-                    };
+                    });
+                    return gdi;
             }
         }
 
@@ -123,6 +137,11 @@ namespace Recora.Core.Ffmpeg
                 // Windows.Graphics.Capture only delivers frames when something changes; editors want constant frame rate.
                 output.AddRange(new[] { "-fps_mode", "cfr", "-r", Invariant($"{plan.Fps}") });
             }
+            else if (plan.Backend == CaptureBackend.Dshow)
+            {
+                // Constant rate at the device's own rate: a 30 fps webcam recorded "at 60" would only repeat frames.
+                output.AddRange(new[] { "-fps_mode", "cfr" });
+            }
 
             output.AddRange(VideoEncoderArgs.Build(plan.EncodeOptions));
             output.AddRange(ColorTags(plan));
@@ -135,7 +154,12 @@ namespace Recora.Core.Ffmpeg
             var capture = plan.CaptureSize;
             var scaled = width != capture.Width || height != capture.Height;
             var kind = plan.Encoder.Kind;
-            var gpuFrames = plan.Backend != CaptureBackend.Gdigrab;
+            var gpuFrames = plan.Backend != CaptureBackend.Gdigrab && plan.Backend != CaptureBackend.Dshow;
+
+            if (plan.Backend == CaptureBackend.Dshow)
+            {
+                return DeviceConversion(kind, plan.Scale);
+            }
 
             if (!gpuFrames)
             {
@@ -158,6 +182,17 @@ namespace Recora.Core.Ffmpeg
             }
         }
 
+        /// <summary>
+        /// Device frames (YUY2, MJPEG, NV12...) of a size only known once open: round to even, cap the height, convert.
+        /// No color matrix is forced: webcams send BT.601 YUV and swscale keeps it as it is.
+        /// </summary>
+        private static string DeviceConversion(EncoderKind kind, OutputScale scale)
+        {
+            var height = scale == OutputScale.Original ? "trunc(ih/2)*2" : Invariant($"trunc(min(ih\\,{(int)scale})/2)*2");
+            var format = kind == EncoderKind.X264 ? "yuv420p" : "nv12";
+            return $"scale=-2:{height},format={format}";
+        }
+
         private static string CpuConversion(EncoderKind kind, bool scaled, int width, int height)
         {
             var size = scaled ? Invariant($"{width}:{height}:flags=bicubic:") : string.Empty;
@@ -171,6 +206,11 @@ namespace Recora.Core.Ffmpeg
         /// </summary>
         private static IEnumerable<string> ColorTags(RecordingPlan plan)
         {
+            if (plan.Backend == CaptureBackend.Dshow)
+            {
+                return new string[0];
+            }
+
             if (plan.Backend == CaptureBackend.Gdigrab || plan.Encoder.Kind == EncoderKind.X264 || plan.Encoder.Kind == EncoderKind.MediaFoundation)
             {
                 return new[] { "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv" };

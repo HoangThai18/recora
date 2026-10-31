@@ -124,6 +124,7 @@ namespace Recora.App.UI
         private readonly FlowLayoutPanel _pills;
         private readonly SourceRow _row;
         private readonly Card _sourceCard;
+        private readonly Label _pickerLabel;
         private bool _filling;
 
         public HomePage()
@@ -144,11 +145,37 @@ namespace Recora.App.UI
                 }
             };
 
+            _pickerLabel = Caption("Màn hình", Theme.Small, Theme.Muted, 4);
+            Devices = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.System,
+                Font = Theme.Body,
+                Width = 300,
+                Margin = new Padding(0, 0, 0, 12),
+                AccessibleName = "Webcam hoặc thiết bị cần ghi",
+            };
+            Devices.SelectionChangeCommitted += (_, _) =>
+            {
+                if (Devices.SelectedItem is string device)
+                {
+                    DeviceSelected?.Invoke(this, device);
+                }
+            };
+            AudioFormats = new Segmented<Core.Ffmpeg.AudioFormat>(
+                new[] { (Core.Ffmpeg.AudioFormat.M4a, "M4A"), (Core.Ffmpeg.AudioFormat.Mp3, "MP3"), (Core.Ffmpeg.AudioFormat.Wav, "WAV") },
+                Core.Ffmpeg.AudioFormat.M4a)
+            {
+                Width = 240,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+
             var details = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
-            details.Controls.AddRange(new Control[] { _mode, _source, _encoder, Caption("Màn hình", Theme.Small, Theme.Muted, 4), Monitors });
+            details.Controls.AddRange(new Control[] { _mode, _source, _encoder, _pickerLabel, Monitors, Devices, AudioFormats });
             _row = new SourceRow(Preview, details) { Margin = Padding.Empty };
             source.Body.Controls.Add(_row);
             source.Body.SizeChanged += (_, _) => FitRow(source);
+            ShowPicker(PickerKind.Monitors);
 
             var audio = AddCard("âm thanh");
             SystemAudio = new ToggleSwitch("Tiếng máy (loa, tai nghe)", true) { Size = new Size(280, 30), Margin = Padding.Empty };
@@ -167,6 +194,58 @@ namespace Recora.App.UI
         }
 
         public event EventHandler<string>? MonitorSelected;
+
+        public event EventHandler<string>? DeviceSelected;
+
+        public enum PickerKind
+        {
+            Monitors,
+            Devices,
+            AudioFormats,
+            None,
+        }
+
+        public ComboBox Devices { get; }
+
+        public Segmented<Core.Ffmpeg.AudioFormat> AudioFormats { get; }
+
+        /// <summary>The control under the source text: the screens, the webcams, or the sound file formats.</summary>
+        public void ShowPicker(PickerKind kind)
+        {
+            Monitors.Visible = kind == PickerKind.Monitors;
+            Devices.Visible = kind == PickerKind.Devices;
+            AudioFormats.Visible = kind == PickerKind.AudioFormats;
+            _pickerLabel.Visible = kind != PickerKind.None;
+            _pickerLabel.Text = kind switch
+            {
+                PickerKind.Devices => "Thiết bị",
+                PickerKind.AudioFormats => "Định dạng",
+                _ => "Màn hình",
+            };
+            FitRow(_sourceCard);
+            RefitCards();
+        }
+
+        /// <summary>Fills the webcam list; an empty list shows a single disabled hint.</summary>
+        public void ShowDevices(IReadOnlyList<string> devices, string selected)
+        {
+            Devices.Items.Clear();
+            foreach (var device in devices)
+            {
+                Devices.Items.Add(device);
+            }
+
+            Devices.Enabled = devices.Count > 0;
+            if (devices.Count == 0)
+            {
+                Devices.Items.Add("Không tìm thấy webcam nào");
+                Devices.SelectedIndex = 0;
+                return;
+            }
+
+            var index = devices.ToList().FindIndex(d => d == selected);
+            Devices.SelectedIndex = index >= 0 ? index : 0;
+        }
 
         public PreviewBox Preview { get; }
 

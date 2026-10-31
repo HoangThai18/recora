@@ -56,6 +56,14 @@ namespace Recora.Core.Ffmpeg
             return args.Add("-f", "matroska", outputPath);
         }
 
+        /// <summary>Sound-only sessions: the same concat and stream copy into .m4a, .mp3 or .wav.</summary>
+        public static FfmpegArgs BuildAudio(string concatListPath, string outputPath, AudioFormat format) =>
+            new FfmpegArgs()
+                .Add("-hide_banner", "-y", "-nostats")
+                .Add("-f", "concat", "-safe", "0", "-i", concatListPath)
+                .Add("-map", "0:a", "-c", "copy")
+                .Add("-f", AudioRecordingCommand.Muxer(format), outputPath);
+
         public static string Extension(ContainerFormat format) => format == ContainerFormat.Mp4 ? ".mp4" : ".mkv";
 
         /// <summary>A single, cleanly closed Matroska segment can simply be moved into place when the target is MKV.</summary>

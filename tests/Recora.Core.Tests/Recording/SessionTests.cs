@@ -148,6 +148,17 @@ namespace Recora.Core.Tests.Recording
         }
 
         [Fact]
+        public void Plan_SessionAlreadySaved_IsOnlyCleanedUp_NeverJoinedAgain()
+        {
+            var saved = new LeftoverSession("s4", Manifest("001.mkv"), new Dictionary<string, long> { ["001.mkv"] = 9_000_000 }, Saved: true);
+
+            var plan = RecoveryPlanner.Plan(new[] { saved });
+
+            Assert.Empty(plan.Finish);
+            Assert.Equal(new[] { "s4" }, plan.Discard);
+        }
+
+        [Fact]
         public void Plan_KeepsSegmentOrderFromTheManifest()
         {
             var session = new LeftoverSession("s3", Manifest("001.mkv", "002.mkv", "003.mkv"),
