@@ -2,7 +2,7 @@
 
 | Phase | Mục tiêu | Trạng thái |
 |---|---|---|
-| P0 | Nền móng: solution, FFmpeg tự build, CI Windows ghi thử được | todo |
+| P0 | Nền móng: solution, FFmpeg tự build, CI Windows ghi thử được | doing |
 | P1 | Ghi toàn màn hình kèm tiếng, tạm dừng, phím tắt, không mất video | todo |
 | P2 | Đủ các chế độ quay và công cụ đi kèm | todo |
 | P3 | Phát hành trên thaipro.store | todo |
