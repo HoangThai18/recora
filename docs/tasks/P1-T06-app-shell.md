@@ -3,7 +3,7 @@ id: P1-T06
 title: App chạy thật - trang cài đặt, phím tắt toàn cục, khay hệ thống, thư viện, một phiên bản
 phase: P1
 lane: DESKTOP
-status: todo
+status: doing
 deps: [P1-T05]
 touches: [src/Recora.App/UI/**, src/Recora.App/Platform/HotkeyManager.cs, src/Recora.App/Platform/SingleInstance.cs, src/Recora.App/Platform/StartupRegistration.cs, src/Recora.App/MainController.cs, src/Recora.App/AppPaths.cs, src/Recora.App/Program.cs, src/Recora.App/SelfTest*.cs, tools/ci/ui-screenshots.ps1]
 size: L

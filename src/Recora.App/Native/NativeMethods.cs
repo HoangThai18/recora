@@ -10,6 +10,10 @@ namespace Recora.App.Native
         public const uint JobObjectLimitKillOnJobClose = 0x2000;
         public const uint MonitorDefaultToPrimary = 1;
 
+        /// <summary>Windows 10 2004+: the window shows on screen but not in any capture, Recora's own included.</summary>
+        public const uint WdaExcludeFromCapture = 0x11;
+        public const uint WdaNone = 0x0;
+
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool AttachConsole(int processId);
 
@@ -24,6 +28,15 @@ namespace Recora.App.Native
 
         [DllImport("user32.dll")]
         public static extern IntPtr MonitorFromPoint(Point point, uint flags);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint affinity);
+
+        public const int DwmBorderColor = 34;
+        public const int DwmCaptionColor = 35;
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Point

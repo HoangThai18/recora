@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using Recora.App.UI.Controls;
 
@@ -53,9 +55,10 @@ namespace Recora.App.UI
 
         protected FlowLayoutPanel Stack { get; }
 
-        protected Card AddCard(string title, int height)
+        /// <summary>Adds a card; with no height it grows to fit its content.</summary>
+        protected Card AddCard(string title, int height = 0)
         {
-            var card = new Card(title) { Height = height, Margin = new Padding(0, 0, 0, 14) };
+            var card = new Card(title) { Height = height > 0 ? height : 60, AutoHeight = height <= 0, Margin = new Padding(0, 0, 0, 14) };
             Stack.Controls.Add(card);
             FitCards();
             return card;
@@ -71,6 +74,8 @@ namespace Recora.App.UI
             BackColor = Theme.Surface,
         };
 
+        protected void RefitCards() => FitCards();
+
         private void FitCards()
         {
             var width = ClientSize.Width - Padding.Horizontal - SystemInformation.VerticalScrollBarWidth;
@@ -79,54 +84,95 @@ namespace Recora.App.UI
                 if (control is Card card)
                 {
                     card.Width = Math.Max(300, width);
+                    if (card.AutoHeight)
+                    {
+                        card.FitHeight();
+                    }
                 }
             }
         }
     }
 
     /// <summary>What the home page shows; the app fills it from settings and the encoder probe.</summary>
-    internal sealed record HomeModel(string Mode, string SourceDetail, string Encoder, string VideoSummary, bool SystemAudio, bool Microphone);
+    /// <summary>What the home page shows; the app fills it from settings and the encoder probe.</summary>
+    internal sealed record HomeModel(
+        string Mode,
+        string SourceDetail,
+        string Encoder,
+        IReadOnlyList<string> VideoPills,
+        bool SystemAudio,
+        bool Microphone);
 
+    /// <summary>
+    /// The first thing the user sees: a live picture of the screen that will be recorded (a big clock while recording),
+    /// the screens to pick from, sound sources with live levels, and the video settings at a glance.
+    /// </summary>
     internal sealed class HomePage : Page
     {
         private readonly Label _mode;
         private readonly Label _source;
         private readonly Label _encoder;
-        private readonly Label _video;
+        private readonly FlowLayoutPanel _hints;
+        private readonly FlowLayoutPanel _pills;
+        private readonly SourceRow _row;
+        private readonly Card _sourceCard;
+        private bool _filling;
 
         public HomePage()
             : base("Trang chủ")
         {
-            var source = AddCard("nguồn ghi", 170);
+            var source = AddCard("nguồn ghi");
+            _sourceCard = source;
+            Preview = new PreviewBox();
             _mode = Caption(string.Empty, Theme.Title, Theme.Accent, 2);
             _source = Caption(string.Empty, Theme.Body, Theme.Muted, 2);
-            _encoder = Caption(string.Empty, Theme.Mono, Theme.Text, 14);
-            source.Body.Controls.Add(_mode);
-            source.Body.Controls.Add(_source);
-            source.Body.Controls.Add(_encoder);
+            _encoder = Caption(string.Empty, Theme.Mono, Theme.Text, 12);
+            Monitors = new MonitorMap { Size = new Size(240, 64), Margin = new Padding(0, 0, 0, 12) };
+            Monitors.Picked += (_, device) =>
+            {
+                if (!_filling)
+                {
+                    MonitorSelected?.Invoke(this, device);
+                }
+            };
+            _hints = new FlowLayoutPanel { AutoSize = true, WrapContents = true, BackColor = Theme.Surface, Margin = Padding.Empty };
+            SetHints("F12", "Shift+F12", "F11");
 
-            var hints = new FlowLayoutPanel { AutoSize = true, WrapContents = true, BackColor = Theme.Surface, Margin = Padding.Empty };
-            hints.Controls.Add(Hint("F12", "Ghi / Dừng"));
-            hints.Controls.Add(Hint("Shift+F12", "Tạm dừng"));
-            hints.Controls.Add(Hint("F11", "Chụp ảnh"));
-            source.Body.Controls.Add(hints);
+            var details = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
+            details.Controls.AddRange(new Control[] { _mode, _source, _encoder, Caption("Màn hình", Theme.Small, Theme.Muted, 4), Monitors, _hints });
+            _row = new SourceRow(Preview, details) { Margin = Padding.Empty };
+            source.Body.Controls.Add(_row);
+            source.Body.SizeChanged += (_, _) => FitRow(source);
 
-            var audio = AddCard("âm thanh", 118);
-            SystemAudio = new ToggleSwitch("Tiếng máy (loa, tai nghe)", true) { Size = new Size(280, 30), Margin = new Padding(0, 0, 0, 6) };
+            var audio = AddCard("âm thanh");
+            SystemAudio = new ToggleSwitch("Tiếng máy (loa, tai nghe)", true) { Size = new Size(280, 30), Margin = Padding.Empty };
             Microphone = new ToggleSwitch("Micro", true) { Size = new Size(280, 30), Margin = Padding.Empty };
-            audio.Body.Controls.Add(SystemAudio);
-            audio.Body.Controls.Add(Microphone);
+            SystemLevel = new LevelMeter { Size = new Size(220, 30), Margin = new Padding(12, 0, 0, 0) };
+            MicrophoneLevel = new LevelMeter { Size = new Size(220, 30), Margin = new Padding(12, 0, 0, 0) };
+            audio.Body.Controls.Add(Row(SystemAudio, SystemLevel, 6));
+            audio.Body.Controls.Add(Row(Microphone, MicrophoneLevel, 0));
 
-            var video = AddCard("video", 112);
-            _video = Caption(string.Empty, Theme.Body, Theme.Text, 10);
+            var video = AddCard("video");
+            _pills = new FlowLayoutPanel { AutoSize = true, WrapContents = true, BackColor = Theme.Surface, Margin = new Padding(0, 0, 0, 12) };
             ChangeQuality = new FlatButton("Đổi chất lượng") { Size = new Size(150, 34), Margin = Padding.Empty };
-            video.Body.Controls.Add(_video);
+            video.Body.Controls.Add(_pills);
             video.Body.Controls.Add(ChangeQuality);
+            video.Body.SizeChanged += (_, _) => _pills.MaximumSize = new Size(Math.Max(100, video.Body.ClientSize.Width), 0);
         }
+
+        public event EventHandler<string>? MonitorSelected;
+
+        public PreviewBox Preview { get; }
+
+        public MonitorMap Monitors { get; }
 
         public ToggleSwitch SystemAudio { get; }
 
         public ToggleSwitch Microphone { get; }
+
+        public LevelMeter SystemLevel { get; }
+
+        public LevelMeter MicrophoneLevel { get; }
 
         public FlatButton ChangeQuality { get; }
 
@@ -135,15 +181,107 @@ namespace Recora.App.UI
             _mode.Text = model.Mode;
             _source.Text = model.SourceDetail;
             _encoder.Text = "> " + model.Encoder;
-            _video.Text = model.VideoSummary;
             SystemAudio.Checked = model.SystemAudio;
             Microphone.Checked = model.Microphone;
+            SystemLevel.Active = model.SystemAudio;
+            MicrophoneLevel.Active = model.Microphone;
+
+            _pills.SuspendLayout();
+            _pills.Controls.Clear();
+            for (var i = 0; i < model.VideoPills.Count; i++)
+            {
+                _pills.Controls.Add(new Pill(model.VideoPills[i], strong: i == 0) { AutoSize = true, Margin = new Padding(0, 0, 8, 6) });
+            }
+
+            _pills.ResumeLayout();
+            FitRow(_sourceCard);
+            RefitCards();
+        }
+
+        /// <summary>Fills the screen picker without raising <see cref="MonitorSelected"/>.</summary>
+        public void ShowMonitors(IReadOnlyList<MonitorTile> monitors, string selectedDevice)
+        {
+            _filling = true;
+            Monitors.SetTiles(monitors, selectedDevice);
+            _filling = false;
+        }
+
+        public void SetHints(string record, string pause, string screenshot)
+        {
+            _hints.Controls.Clear();
+            _hints.Controls.Add(Hint(record, "Ghi / Dừng"));
+            _hints.Controls.Add(Hint(pause, "Tạm dừng"));
+            _hints.Controls.Add(Hint(screenshot, "Chụp ảnh"));
+        }
+
+        private static FlowLayoutPanel Row(Control toggle, Control meter, int bottom)
+        {
+            var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = new Padding(0, 0, 0, bottom) };
+            row.Controls.Add(toggle);
+            row.Controls.Add(meter);
+            return row;
+        }
+
+        private void FitRow(Card card)
+        {
+            _row.FitTo(card.Body.ClientSize.Width);
+            if (card.AutoHeight)
+            {
+                card.FitHeight();
+            }
         }
 
         private static HotkeyHint Hint(string keys, string action)
         {
             // AutoSize: measured after DPI scaling; a size computed here would be scaled a second time.
             return new HotkeyHint(keys, action) { Margin = new Padding(0, 0, 18, 0), AutoSize = true };
+        }
+
+        /// <summary>Preview on the left at 16:9, details on the right; stacks when the window is narrow.</summary>
+        private sealed class SourceRow : Panel
+        {
+            private readonly Control _left;
+            private readonly Control _right;
+
+            public SourceRow(Control left, Control right)
+            {
+                _left = left;
+                _right = right;
+                BackColor = Theme.Surface;
+                Controls.Add(left);
+                Controls.Add(right);
+            }
+
+            public void FitTo(int width)
+            {
+                if (width <= 0)
+                {
+                    return;
+                }
+
+                var dpi = DeviceDpi / 96f * Theme.UiScale;
+                int S(float v) => (int)(v * dpi);
+                var gap = S(22);
+                var stacked = width < S(560);
+                var leftWidth = stacked ? Math.Min(width, S(420)) : Math.Min(S(330), Math.Max(S(220), (width - gap) * 44 / 100));
+                var leftHeight = leftWidth * 9 / 16;
+                var rightWidth = stacked ? width : width - leftWidth - gap;
+
+                foreach (Control child in _right.Controls)
+                {
+                    if (child is FlowLayoutPanel flow && flow.AutoSize)
+                    {
+                        flow.MaximumSize = new Size(rightWidth, 0);
+                    }
+                }
+
+                var rightHeight = _right.GetPreferredSize(new Size(rightWidth, 0)).Height;
+                _left.Bounds = new Rectangle(0, 0, leftWidth, leftHeight);
+                _right.Bounds = stacked
+                    ? new Rectangle(0, leftHeight + S(14), rightWidth, rightHeight)
+                    : new Rectangle(leftWidth + gap, 0, rightWidth, rightHeight);
+                Size = new Size(width, stacked ? leftHeight + S(14) + rightHeight : Math.Max(leftHeight, rightHeight));
+            }
         }
     }
 

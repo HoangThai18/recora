@@ -45,6 +45,9 @@ namespace Recora.App.UI
 
         public static Font MonoSmall { get; private set; } = null!;
 
+        /// <summary>The recording clock on the home page.</summary>
+        public static Font Clock { get; private set; } = null!;
+
         static Theme() => Configure(1f);
 
         public static void Configure(float uiScale)
@@ -57,6 +60,7 @@ namespace Recora.App.UI
             Brand = new Font("Segoe UI Semibold", 14f * uiScale, FontStyle.Regular, GraphicsUnit.Point);
             Mono = new Font("Consolas", 9.75f * uiScale, FontStyle.Regular, GraphicsUnit.Point);
             MonoSmall = new Font("Consolas", 8.5f * uiScale, FontStyle.Regular, GraphicsUnit.Point);
+            Clock = new Font("Consolas", 24f * uiScale, FontStyle.Bold, GraphicsUnit.Point);
         }
 
         public static Color FromHex(int rgb) => Color.FromArgb(255, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);

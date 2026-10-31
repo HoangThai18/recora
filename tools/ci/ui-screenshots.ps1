@@ -11,15 +11,27 @@ try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop } 
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 Write-Host "primary screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
 
+$library = Join-Path $root 'artifacts/selftest/recorder'
+$shots = @()
 foreach ($scale in @('1', '1.5')) {
-    foreach ($page in @('Home', 'Video')) {
-        $file = Join-Path $out ("ui-{0}-{1}.png" -f $page.ToLower(), $scale.Replace('.', '_'))
-        $process = Start-Process -FilePath $exe -ArgumentList @('--ui-screenshot', "`"$file`"", '--ui-scale', $scale, '--page', $page) -NoNewWindow -Wait -PassThru
-        if ($process.ExitCode -ne 0 -or -not (Test-Path $file)) { throw "screenshot $file failed ($($process.ExitCode))" }
-        $image = [System.Drawing.Image]::FromFile($file)
-        $width = $image.Width; $height = $image.Height
-        $image.Dispose()
-        Write-Host "saved $file ($width x $height)"
-        if ($scale -eq '1.5' -and $width -lt 1400) { throw "150% screenshot is only $width px wide: the screen is too small to show the real layout" }
+    foreach ($page in @('Home', 'Video', 'Audio', 'Hotkeys', 'General', 'Library', 'About')) {
+        $shots += ,@($scale, $page, $false)
     }
+    $shots += ,@($scale, 'Home', $true)
+}
+
+foreach ($shot in $shots) {
+    $scale, $page, $recording = $shot
+    $suffix = if ($recording) { '-recording' } else { '' }
+    $file = Join-Path $out ("ui-{0}{1}-{2}.png" -f $page.ToLower(), $suffix, $scale.Replace('.', '_'))
+    $arguments = @('--ui-screenshot', "`"$file`"", '--ui-scale', $scale, '--page', $page)
+    if (Test-Path $library) { $arguments += @('--library', "`"$library`"") }
+    if ($recording) { $arguments += '--recording' }
+    $process = Start-Process -FilePath $exe -ArgumentList $arguments -NoNewWindow -Wait -PassThru
+    if ($process.ExitCode -ne 0 -or -not (Test-Path $file)) { throw "screenshot $file failed ($($process.ExitCode))" }
+    $image = [System.Drawing.Image]::FromFile($file)
+    $width = $image.Width; $height = $image.Height
+    $image.Dispose()
+    Write-Host "saved $file ($width x $height)"
+    if ($scale -eq '1.5' -and $width -lt 1400) { throw "150% screenshot is only $width px wide: the screen is too small to show the real layout" }
 }
