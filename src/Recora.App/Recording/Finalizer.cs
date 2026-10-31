@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using static System.FormattableString;
 using Recora.App.Logging;
 using Recora.Core;
 using Recora.Core.Encoding;
@@ -14,6 +15,32 @@ namespace Recora.App.Recording
     /// <summary>Turns a session folder into the final file by stream copy, then removes the folder (BR-01).</summary>
     internal static class Finalizer
     {
+        private const long MarginBytes = 64L * 1024 * 1024;
+
+        public static long? FreeBytes(string folder)
+        {
+            try
+            {
+                var root = Path.GetPathRoot(Path.GetFullPath(folder));
+                return string.IsNullOrEmpty(root) || root!.StartsWith(@"\\", StringComparison.Ordinal) ? (long?)null : new DriveInfo(root).AvailableFreeSpace;
+            }
+            catch (Exception error) when (error is IOException || error is ArgumentException || error is UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            {
+            }
+        }
+
         public static string? Finish(string ffmpeg, string folder, SessionManifest manifest, IReadOnlyList<FinishedSegment> segments, bool recovered = false)
         {
             var usable = segments.Where(s => s.Bytes > 1024).ToList();
@@ -35,19 +62,43 @@ namespace Recora.App.Recording
             var list = Path.Combine(folder, "concat.txt");
             File.WriteAllText(list, FinalizeCommand.ConcatList(entries), new UTF8Encoding(false));
 
-            // Generous timeout: copying streams is disk-bound, about a second per gigabyte on an SSD.
+            // The copy needs as much room as the segments: without it, keep the segments and say how much to free
+            // (BR-06: never leave a broken file). A UNC share reports no drive; then just try.
             var bytes = usable.Sum(s => s.Bytes);
-            var timeout = TimeSpan.FromSeconds(60 + bytes / (20L * 1024 * 1024));
-            var run = FfmpegProcess.Run(ffmpeg, FinalizeCommand.Build(list, output, format, codec), timeout);
+            var free = FreeBytes(folder);
+            if (free.HasValue && free.Value < bytes + MarginBytes)
+            {
+                throw new RecoraException("finalize_no_space", Invariant($"need {bytes + MarginBytes} bytes, {free.Value} free"));
+            }
 
-            if (run.ExitCode != 0 || !File.Exists(output) || new FileInfo(output).Length == 0)
+            // Written inside the session folder first and moved into place only when complete, so a failure or a
+            // kill mid-copy never leaves a half file where the user looks.
+            var partial = Path.Combine(folder, "final.part");
+            var timeout = TimeSpan.FromSeconds(60 + bytes / (20L * 1024 * 1024));
+            var run = FfmpegProcess.Run(ffmpeg, FinalizeCommand.Build(list, partial, format, codec), timeout);
+
+            if (run.ExitCode != 0 || !File.Exists(partial) || new FileInfo(partial).Length == 0)
             {
                 Log.Error("finalize failed: " + run.Error);
+                TryDeleteFile(partial);
                 throw new RecoraException("finalize_failed", "ffmpeg concat exited with " + run.ExitCode);
             }
 
+            File.Move(partial, output);
             Log.Info($"saved {output} ({new FileInfo(output).Length} bytes, {usable.Count} segment(s){(recovered ? ", recovered" : string.Empty)})");
-            Directory.Delete(folder, recursive: true);
+
+            // The video is saved: failing to tidy up (antivirus holding a segment) must not turn it into an error,
+            // but the manifest goes first so recovery never makes a second copy.
+            TryDeleteFile(Path.Combine(folder, SessionManifest.FileName));
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            {
+                Log.Warn("session folder left behind: " + error.Message);
+            }
+
             return output;
         }
     }

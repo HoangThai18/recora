@@ -570,6 +570,9 @@ namespace Recora.App
             try
             {
                 var source = flow == DataFlow.Render ? WasapiSource.Loopback(device) : WasapiSource.Microphone(device);
+                var name = device.FriendlyName;
+                source.Lost += _ => _form.BeginInvoke(new Action(() =>
+                    _tray.Notify("Mất " + what, $"{name} vừa bị rút hoặc tắt. Video vẫn ghi tiếp, phần sau không có {what}.", ToolTipIcon.Warning)));
                 source.Start();
                 lock (_audio)
                 {
@@ -649,11 +652,11 @@ namespace Recora.App
             _lastDiskCheck = DateTime.UtcNow;
             try
             {
-                var free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(OutputFolder))!).AvailableFreeSpace;
-                if (DiskGuard.ShouldStop(free))
+                var free = Finalizer.FreeBytes(OutputFolder);
+                if (free.HasValue && DiskGuard.ShouldStop(free.Value))
                 {
                     Log.Warn($"disk almost full ({free} bytes), stopping");
-                    _tray.Notify("Ổ đĩa sắp đầy", "Còn dưới 500 MB trống nên Recora đã dừng và lưu video.", ToolTipIcon.Warning);
+                    _tray.Notify("Ổ đĩa sắp đầy", "Còn dưới 500 MB trống nên Recora đã dừng ghi. Các đoạn đã ghi được giữ lại.", ToolTipIcon.Warning);
                     _ = StopRecording(recorder);
                 }
             }
@@ -800,6 +803,7 @@ namespace Recora.App
         {
             "disk_full" => "Ổ đĩa lưu video còn dưới 500 MB trống. Dọn bớt hoặc đổi thư mục lưu ở trang Chung.",
             "no_working_encoder" => "Không mở được bộ ghi nào trên máy này. Thử cập nhật driver card màn hình, hoặc chọn bộ mã hoá CPU ở trang Video.",
+            "finalize_no_space" => "Ổ đĩa không đủ chỗ để lưu video. Các đoạn đã ghi vẫn được giữ: dọn bớt ổ đĩa rồi mở lại Recora, video sẽ được lưu.",
             "finalize_failed" => "Không ghép được file video cuối. Các đoạn đã ghi vẫn được giữ, Recora sẽ thử lưu lại khi mở lần sau.",
             "ffmpeg_missing" => "Thiếu ffmpeg.exe cạnh Recora.exe. Hãy tải lại Recora bản đầy đủ từ thaipro.store.",
             "region_too_small" => "Vùng ghi quá nhỏ, cần ít nhất 160×90 điểm ảnh.",
@@ -808,6 +812,13 @@ namespace Recora.App
 
         private void ChooseOutputFolder(GeneralPage page)
         {
+            // Recovery and the disk check both look at the output folder: it can't move under a live recording.
+            if (Busy)
+            {
+                ShowMessage("Dừng ghi trước khi đổi thư mục lưu.", MessageBoxIcon.Information);
+                return;
+            }
+
             using (var dialog = new FolderBrowserDialog { Description = "Chọn thư mục lưu video và ảnh chụp", SelectedPath = OutputFolder, ShowNewFolderButton = true })
             {
                 if (dialog.ShowDialog(_form) != DialogResult.OK || string.IsNullOrEmpty(dialog.SelectedPath))
@@ -916,6 +927,13 @@ namespace Recora.App
         private async Task ExitAfterStopping()
         {
             var recorder = _recorder;
+
+            // Starting or saving takes seconds: let it finish instead of killing FFmpeg halfway.
+            for (var waited = 0; recorder != null && (recorder.State == SessionState.Starting || recorder.State == SessionState.Finalizing) && waited < 1200; waited++)
+            {
+                await Task.Delay(250);
+            }
+
             if (recorder != null && Busy)
             {
                 ShowWindow();
