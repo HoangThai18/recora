@@ -5,7 +5,7 @@ phase: P1
 lane: DESKTOP
 status: todo
 deps: [P1-T05]
-touches: [src/Recora.App/UI/**, src/Recora.App/Platform/HotkeyManager.cs, src/Recora.App/Platform/SingleInstance.cs, src/Recora.App/Platform/StartupRegistration.cs, src/Recora.App/MainController.cs, src/Recora.App/AppPaths.cs, src/Recora.App/Program.cs, src/Recora.App/SelfTest*.cs, src/Recora.App/Recording/LibraryFiles.cs, src/Recora.Core/Library/**, tests/Recora.Core.Tests/Library/**, tools/ci/ui-screenshots.ps1]
+touches: [src/Recora.App/UI/**, src/Recora.App/Platform/HotkeyManager.cs, src/Recora.App/Platform/SingleInstance.cs, src/Recora.App/Platform/StartupRegistration.cs, src/Recora.App/MainController.cs, src/Recora.App/AppPaths.cs, src/Recora.App/Program.cs, src/Recora.App/SelfTest*.cs, tools/ci/ui-screenshots.ps1]
 size: L
 ---
 
@@ -26,11 +26,10 @@ Mở Recora là dùng được: chọn màn hình, bấm nút đỏ hoặc F12 �
 - [ ] `HotkeyManager` (RegisterHotKey + MOD_NOREPEAT trên cửa sổ message-only), `SingleInstance` (mutex + thông điệp gọi cửa sổ cũ lên), `StartupRegistration` (khoá Run của người dùng)
 - [ ] Khay hệ thống: chấm đỏ khi ghi, vàng khi tạm dừng; menu Mở, Ghi/Dừng, Tạm dừng, Mở thư mục, Thoát
 - [ ] `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` theo cài đặt; đóng khi đang ghi thì hỏi, Windows tắt máy thì để dành cho khôi phục
-- [ ] Thư viện: `LibraryIndex` (quét, sắp mới nhất trước, thời lượng từ `library.json`), trang danh sách với Mở, Xem trong thư mục, Xoá vào Thùng rác
+- [ ] Trang Thư viện: danh sách mới nhất trước (dữ liệu từ `LibraryIndex` của P1-T05), Mở, Xem trong thư mục, Xoá vào Thùng rác
 - [ ] `--settings-roundtrip` cho CI; `--ui-screenshot` dựng đủ các trang thật
 
 ## Acceptance criteria
-- [ ] Test Core: chỉ mục thời lượng đọc ghi được, file ngoài app không có thời lượng vẫn hiện, ảnh được đánh dấu ảnh
 - [ ] CI: `--settings-roundtrip` giữ mọi trường dưới .NET Framework
 - [ ] CI chụp trang Trang chủ, Video, Âm thanh, Phím tắt, Chung, Thư viện (có file của selftest), Giới thiệu ở 100% và 150%
 - [ ] Build xanh, không cảnh báo

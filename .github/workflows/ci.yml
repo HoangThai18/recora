@@ -123,6 +123,10 @@ jobs:
         shell: pwsh
         run: tools/ci/selftest.ps1
 
+      - name: Bộ ghi của app (tạm dừng, sập giữa chừng rồi cứu, lưu cài đặt)
+        shell: pwsh
+        run: tools/ci/recorder-checks.ps1
+
       - name: Chụp giao diện
         shell: pwsh
         run: tools/ci/ui-screenshots.ps1

@@ -3,9 +3,9 @@ id: P1-T05
 title: Recorder - phiên nhiều đoạn, tạm dừng, tự lùi bộ mã hoá, hoàn tất, khôi phục; dò bộ mã hoá lúc mở app
 phase: P1
 lane: DESKTOP
-status: todo
+status: doing
 deps: [P1-T01, P1-T02, P1-T03, P1-T04]
-touches: [src/Recora.App/Recording/Recorder.cs, src/Recora.App/Recording/Session.cs, src/Recora.App/Recording/Finalizer.cs, src/Recora.App/Recording/EncoderMemory.cs, src/Recora.App/Recording/RecoveryService.cs, src/Recora.App/Recording/CaptureEnvironment.cs, src/Recora.App/SelfTest*.cs, src/Recora.App/Program.cs, tools/ci/recorder-checks.ps1, .github/workflows/ci.yml]
+touches: [src/Recora.App/Recording/Recorder.cs, src/Recora.App/Recording/Session.cs, src/Recora.App/Recording/Finalizer.cs, src/Recora.App/Recording/EncoderMemory.cs, src/Recora.App/Recording/RecoveryService.cs, src/Recora.App/Recording/CaptureEnvironment.cs, src/Recora.App/SelfTest*.cs, src/Recora.App/Program.cs, src/Recora.App/Recording/LibraryFiles.cs, src/Recora.Core/Library/**, tests/Recora.Core.Tests/Library/**, tools/ci/recorder-checks.ps1, .github/workflows/ci.yml]
 size: L
 ---
 
@@ -16,13 +16,15 @@ Một lớp lo trọn phiên ghi: bắt đầu bằng bộ mã hoá tốt nhất
 - [ ] `CaptureEnvironment`: khả năng FFmpeg (bộ lọc, bộ mã hoá), danh sách màn hình, lấy một lần lúc mở app
 - [ ] `EncoderMemory`: nhớ bộ mã hoá chạy được và hỏng trên máy này (kèm dấu vân tay GPU + phiên bản FFmpeg), lần sau thử cái chạy được trước; codec người dùng chọn luôn đứng trước H.264 dự phòng
 - [ ] `Recorder`: Start / Pause / Resume / Stop, mỗi đoạn một FFmpeg + một `AudioPump`, FFmpeg chết trong 4 giây đầu chưa có khung → thử ứng viên kế tiếp; sự kiện trạng thái (thời gian, dung lượng, fps)
-- [ ] `RecoveryService`: quét `.recora` trong thư mục lưu, hoàn tất theo `RecoveryPlanner`
+- [ ] `RecoveryService`: quét `.recora` trong thư mục lưu (nhanh, xong trước khi cho ghi), hoàn tất theo `RecoveryPlanner` (chạy nền)
+- [ ] Ghi thời lượng file vừa lưu vào `library.json` (`LibraryIndex`, `DurationStore`) cho trang Thư viện
 - [ ] Selftest dùng `Recorder`: ghi, tạm dừng, ghi tiếp, dừng; `--selftest-crash` tự giết giữa chừng, `--recover <thư mục>` hoàn tất
 
 ## Acceptance criteria
 - [ ] CI: selftest hai đoạn ra một MP4, thời lượng bằng tổng hai đoạn ± 0,5 giây
 - [ ] CI: sau `--selftest-crash`, `--recover` ra MP4 dài ≥ 1,5 giây
 - [ ] CI: báo cáo ghi rõ các ứng viên đã thử và lý do hỏng
+- [ ] Test Core: chỉ mục thời lượng đọc ghi được, file ngoài app không có thời lượng vẫn hiện, ảnh được đánh dấu ảnh
 
 ## Security
 None.
