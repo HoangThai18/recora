@@ -3,7 +3,7 @@ id: P0-T07
 title: CI Windows - build app, test, selftest, kiểm bằng ffprobe, đóng gói zip
 phase: P0
 lane: INFRA
-status: doing
+status: review
 deps: [P0-T02, P0-T05, P0-T06]
 touches: [.github/workflows/ci.yml, tools/ci/**]
 size: M
@@ -16,15 +16,15 @@ Mỗi lần push, CI trên `windows-latest` build app, chạy test, chạy selft
 - AGENTS.md (lệnh), P0-T02 (job ffmpeg)
 
 ## Sub-tasks
-- [ ] Job `app`: setup .NET 10, build Release, test
-- [ ] Selftest với `ffmpeg.exe` từ job `ffmpeg`, `tools/ci/check-recording.ps1` dùng ffprobe
-- [ ] `--ui-screenshot` ở 100% và 150% DPI, upload ảnh
-- [ ] Đóng gói `recora-<version>-windows-x64-portable.zip`, upload artifact
+- [x] Job `app`: setup .NET 10, build Release, test
+- [x] Selftest với `ffmpeg.exe` từ job `ffmpeg`, `tools/ci/check-recording.ps1` dùng ffprobe
+- [x] `--ui-screenshot` ở 100% và 150% DPI, upload ảnh
+- [x] Đóng gói `recora-<version>-windows-x64-portable.zip`, upload artifact
 
 ## Acceptance criteria
-- [ ] CI xanh trên `phase/P0`; artifact zip dưới 20 MB; ảnh cửa sổ có trong artifact
-- [ ] ffprobe: 1 luồng hình, 1 luồng tiếng dài bằng nhau (lệch ≤ 0,15 giây), cả file trong 2,5–6 giây, tiếng thử có trong file (RMS > 0,05)
-- [ ] Đồng bộ đo trực tiếp: màn hình đổi trắng và tiếng bíp bắt đầu cùng lúc; trong file, khung trắng đầu tiên trừ mẫu tiếng đầu tiên nằm trong -100…+150 ms
+- [x] CI xanh trên `phase/P0`; artifact zip dưới 20 MB; ảnh cửa sổ có trong artifact
+- [x] ffprobe: 1 luồng hình, 1 luồng tiếng dài bằng nhau (lệch ≤ 0,15 giây), cả file trong 2,5–6 giây, tiếng thử có trong file (RMS > 0,05)
+- [x] Đồng bộ đo trực tiếp: màn hình đổi trắng và tiếng bíp bắt đầu cùng lúc; trong file, khung trắng đầu tiên trừ mẫu tiếng đầu tiên nằm trong -100…+150 ms
 
 ## Security
 None.
