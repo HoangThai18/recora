@@ -23,6 +23,10 @@ namespace Recora.App.UI
                 + "Không watermark, không giới hạn thời gian, không gửi dữ liệu đi đâu.",
                 Theme.Body, Theme.Text, 14));
             about.Body.Controls.Add(Links(("Trang tải", Homepage), ("Mã nguồn", SourceCode)));
+            _update = Caption(string.Empty, Theme.Small, Theme.Muted, 0);
+            CheckUpdate = new FlatButton("Kiểm tra bản mới") { Size = new Size(170, 34), Margin = new Padding(0, 12, 0, 4) };
+            about.Body.Controls.Add(CheckUpdate);
+            about.Body.Controls.Add(_update);
 
             var support = AddCard("khi gặp lỗi");
             support.Body.Controls.Add(Caption(
@@ -40,6 +44,12 @@ namespace Recora.App.UI
                 + "NAudio: giấy phép MIT. Danh sách đầy đủ trong THIRD-PARTY-NOTICES.txt cạnh Recora.exe.",
                 Theme.Small, Theme.Muted, 4));
         }
+
+        private readonly Label _update;
+
+        public FlatButton CheckUpdate { get; }
+
+        public void ShowUpdate(string text) => _update.Text = text;
 
         private static FlowLayoutPanel Links(params (string Text, string Url)[] links)
         {

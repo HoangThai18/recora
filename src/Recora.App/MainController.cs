@@ -182,6 +182,7 @@ namespace Recora.App
             ShowStatus();
             SaveSettings();
 
+            CheckForUpdateLater();
             var ffmpeg = _environment.FfmpegPath;
             var result = await Task.Run(() => RecoveryService.Finish(ffmpeg, leftovers));
             var recovered = result.Saved;
@@ -247,7 +248,18 @@ namespace Recora.App
             _form.SetPage(PageKind.Screenshot, screenshots);
 
             _form.SetPage(PageKind.Library, new LibraryPage(() => LibraryFiles.Scan(OutputFolder)));
-            _form.SetPage(PageKind.About, new AboutPage(Program.Version, environment.FfmpegVersion));
+            var about = new AboutPage(Program.Version, environment.FfmpegVersion);
+            about.CheckUpdate.Click += async (_, _) =>
+            {
+                about.CheckUpdate.Enabled = false;
+                about.ShowUpdate("Đang hỏi…");
+                var result = await UpdateService.CheckAsync();
+                about.CheckUpdate.Enabled = true;
+                about.ShowUpdate(result.Failed
+                    ? "Không hỏi được trang phát hành, thử lại sau."
+                    : result.Update == null ? "Bạn đang dùng bản mới nhất." : $"Có bản {result.Update.Version}: bấm Trang tải để tải về.");
+            };
+            _form.SetPage(PageKind.About, about);
         }
 
         private AudioPage BuildAudioPage()
@@ -255,6 +267,21 @@ namespace Recora.App
             var page = new AudioPage(_settings, AudioDevices.Speakers(), AudioDevices.Microphones());
             page.Changed += (_, _) => SettingsChanged();
             return page;
+        }
+
+        /// <summary>One quiet check a minute after start; a newer release shows as a tray note linking to the download page.</summary>
+        private async void CheckForUpdateLater()
+        {
+            await Task.Delay(TimeSpan.FromMinutes(1));
+            var update = (await UpdateService.CheckAsync()).Update;
+            if (update != null && !_disposed)
+            {
+                _tray.Notify(
+                    "Có Recora bản " + update.Version,
+                    "Bấm vào đây để mở trang tải bản mới.",
+                    ToolTipIcon.Info,
+                    () => Process.Start(new ProcessStartInfo(AboutPage.Homepage) { UseShellExecute = true }));
+            }
         }
 
         private void SettingsChanged()
