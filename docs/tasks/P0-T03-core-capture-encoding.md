@@ -3,7 +3,7 @@ id: P0-T03
 title: Core - FfmpegArgs, nguồn hình, danh mục bộ mã hoá và mức chất lượng
 phase: P0
 lane: DESKTOP
-status: review
+status: done
 deps: [P0-T01]
 touches: [src/Recora.Core/Ffmpeg/FfmpegArgs.cs, src/Recora.Core/Capture/**, src/Recora.Core/Encoding/**, tests/Recora.Core.Tests/Ffmpeg/FfmpegArgsTests.cs, tests/Recora.Core.Tests/Capture/**, tests/Recora.Core.Tests/Encoding/**]
 size: M
@@ -41,3 +41,5 @@ dotnet test tests/Recora.Core.Tests
 
 ## Notes / decisions
 - 2026-10-31: x264 đứng trước Media Foundation: cùng tốn CPU nhưng x264 cho file nhỏ hơn ở cùng độ nét; MF chỉ còn giá trị khi cần H.265 mà máy không có GPU mã hoá được. GPU ảo (`Microsoft`) bỏ qua các bộ mã hoá phần cứng để khỏi mất vài giây dò.
+
+Review: [docs/reviews/P0-T03.md](../reviews/P0-T03.md) · PASS · merge vào phase/P0
