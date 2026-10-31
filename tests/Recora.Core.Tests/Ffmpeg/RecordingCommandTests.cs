@@ -78,6 +78,15 @@ namespace Recora.Core.Tests.Ffmpeg
         }
 
         [Fact]
+        public void Build_SegmentSurvivesACrash_PacketsFlushedAndClustersShort()
+        {
+            var args = Build(Plan());
+
+            Assert.Equal("1", ValueAfter(args, "-flush_packets"));
+            Assert.Equal("2000", ValueAfter(args, "-cluster_time_limit"));
+        }
+
+        [Fact]
         public void Build_WithoutAudio_HasNoAudioInputOrCodec()
         {
             var args = Build(Plan(audio: AudioLayout.None));

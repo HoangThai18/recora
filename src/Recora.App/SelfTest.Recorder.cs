@@ -100,8 +100,8 @@ namespace Recora.App
                 return 1;
             }
 
-            Thread.Sleep(2500);
-            Log.Info("crash test: killing Recora while recording");
+            Thread.Sleep(3000);
+            Log.Info($"crash test: killing Recora while recording ({recorder.Status().Bytes} bytes muxed)");
             Process.GetCurrentProcess().Kill();
             return 2;
         }
