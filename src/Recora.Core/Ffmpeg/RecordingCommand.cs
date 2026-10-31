@@ -1,0 +1,210 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using Recora.Core.Capture;
+using Recora.Core.Encoding;
+using Recora.Core.Recording;
+
+namespace Recora.Core.Ffmpeg
+{
+    /// <summary>
+    /// Builds the FFmpeg command for one recording segment. Video is input 0 and the audio pipes follow it, so FFmpeg
+    /// grabs the first frame before it opens the pipes and sound lines up with the picture (ADR 4).
+    /// </summary>
+    public static class RecordingCommand
+    {
+        public const int AudioSampleRate = 48000;
+
+        public const int AudioChannels = 2;
+
+        public static FfmpegArgs Build(RecordingPlan plan, string segmentPath, IReadOnlyList<string> audioPipes)
+        {
+            if (audioPipes.Count != plan.AudioTrackCount)
+            {
+                throw new ArgumentException(
+                    $"{plan.Audio} needs {plan.AudioTrackCount} audio pipes, got {audioPipes.Count}", nameof(audioPipes));
+            }
+
+            var args = new FfmpegArgs()
+                .Add("-hide_banner", "-y", "-nostats", "-progress", "pipe:1", "-stats_period", "0.5")
+                .Add(VideoInput(plan));
+
+            foreach (var pipe in audioPipes)
+            {
+                args.Add(AudioPipeInput(pipe));
+            }
+
+            args.Add("-map", "0:v:0");
+            for (var i = 0; i < audioPipes.Count; i++)
+            {
+                args.Add("-map", Invariant($"{i + 1}:a:0"));
+            }
+
+            args.Add(VideoOutput(plan));
+
+            if (audioPipes.Count > 0)
+            {
+                args.Add("-c:a", "aac", "-b:a", Invariant($"{VideoEncoderArgs.AudioBitrateKbps(plan.Quality)}k"));
+                if (plan.Audio == AudioLayout.SeparateTracks)
+                {
+                    args.Add("-metadata:s:a:0", "title=Tiếng máy", "-metadata:s:a:1", "title=Micro");
+                }
+            }
+
+            // Short Matroska clusters: if the PC dies mid-recording, at most ~2 seconds are lost (BR-01).
+            return args.Add(
+                "-max_muxing_queue_size", "4096",
+                "-f", "matroska", "-cluster_time_limit", "2000",
+                segmentPath);
+        }
+
+        /// <summary>The raw PCM the app's AudioPump writes: 48 kHz stereo float, read with minimal probing.</summary>
+        public static string[] AudioPipeInput(string pipePath) => new[]
+        {
+            "-thread_queue_size", "1024", "-probesize", "32", "-analyzeduration", "0",
+            "-f", "f32le", "-ar", Invariant($"{AudioSampleRate}"), "-ac", Invariant($"{AudioChannels}"), "-i", pipePath,
+        };
+
+        /// <summary>Input 0 for the plan's backend: GPU capture through the lavfi device, or GDI on the CPU.</summary>
+        public static IReadOnlyList<string> VideoInput(RecordingPlan plan)
+        {
+            var fps = Invariant($"{plan.Fps}");
+            var cursor = plan.DrawCursor ? "1" : "0";
+            var area = plan.CaptureSize;
+            var monitor = plan.Source.Monitor;
+
+            switch (plan.Backend)
+            {
+                case CaptureBackend.Ddagrab:
+                    var dda = Invariant($"ddagrab=output_idx={monitor.DdaOutputIndex ?? 0}:framerate={fps}:draw_mouse={cursor}");
+                    if (plan.Source is not MonitorSource)
+                    {
+                        // ddagrab offsets are relative to the output, not to the virtual desktop.
+                        dda += Invariant(
+                            $":video_size={area.Width}x{area.Height}:offset_x={area.X - monitor.Bounds.X}:offset_y={area.Y - monitor.Bounds.Y}");
+                    }
+
+                    return new[] { "-f", "lavfi", "-i", dda };
+
+                case CaptureBackend.Gfxcapture:
+                    return new[] { "-f", "lavfi", "-i", GfxcaptureSource(plan, fps, cursor) };
+
+                default:
+                    return new[]
+                    {
+                        "-thread_queue_size", "512", "-probesize", "100M",
+                        "-f", "gdigrab", "-framerate", fps, "-draw_mouse", cursor,
+                        "-offset_x", Invariant($"{area.X}"), "-offset_y", Invariant($"{area.Y}"),
+                        "-video_size", Invariant($"{area.Width}x{area.Height}"), "-i", "desktop",
+                    };
+            }
+        }
+
+        /// <summary>Filters, frame-rate handling, encoder settings and color tags shared by recording and probing.</summary>
+        public static IReadOnlyList<string> VideoOutput(RecordingPlan plan)
+        {
+            var output = new List<string>();
+            var chain = VideoFilterChain(plan);
+
+            if (chain.Length > 0)
+            {
+                output.AddRange(new[] { "-vf", chain });
+            }
+
+            if (plan.Backend == CaptureBackend.Gfxcapture)
+            {
+                // Windows.Graphics.Capture only delivers frames when something changes; editors want constant frame rate.
+                output.AddRange(new[] { "-fps_mode", "cfr", "-r", Invariant($"{plan.Fps}") });
+            }
+
+            output.AddRange(VideoEncoderArgs.Build(plan.EncodeOptions));
+            output.AddRange(ColorTags(plan));
+            return output;
+        }
+
+        public static string VideoFilterChain(RecordingPlan plan)
+        {
+            var (width, height) = plan.OutputSize;
+            var capture = plan.CaptureSize;
+            var scaled = width != capture.Width || height != capture.Height;
+            var kind = plan.Encoder.Kind;
+            var gpuFrames = plan.Backend != CaptureBackend.Gdigrab;
+
+            if (!gpuFrames)
+            {
+                return CpuConversion(kind, scaled, width, height);
+            }
+
+            switch (kind)
+            {
+                case EncoderKind.Nvenc:
+                case EncoderKind.Amf:
+                    // Both take BGRA D3D11 textures directly: the frame never leaves the GPU.
+                    return scaled ? Invariant($"scale_d3d11=width={width}:height={height}") : string.Empty;
+
+                case EncoderKind.Qsv:
+                    var size = scaled ? Invariant($"width={width}:height={height}:") : string.Empty;
+                    return $"scale_d3d11={size}format=nv12,hwmap=derive_device=qsv,format=qsv";
+
+                default:
+                    return "hwdownload,format=bgra," + CpuConversion(kind, scaled, width, height);
+            }
+        }
+
+        private static string CpuConversion(EncoderKind kind, bool scaled, int width, int height)
+        {
+            var size = scaled ? Invariant($"{width}:{height}:flags=bicubic:") : string.Empty;
+            var format = kind == EncoderKind.X264 ? "yuv420p" : "nv12";
+            return $"scale={size}out_color_matrix=bt709:out_range=tv,format={format}";
+        }
+
+        /// <summary>
+        /// Tags only where the conversion is known: swscale is told BT.709, the D3D11 video processor converts with
+        /// BT.601. NVENC tags RGB input itself (nvenc.c), and AMF's converter is left to the driver.
+        /// </summary>
+        private static IEnumerable<string> ColorTags(RecordingPlan plan)
+        {
+            if (plan.Backend == CaptureBackend.Gdigrab || plan.Encoder.Kind == EncoderKind.X264 || plan.Encoder.Kind == EncoderKind.MediaFoundation)
+            {
+                return new[] { "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv" };
+            }
+
+            if (plan.Encoder.Kind == EncoderKind.Qsv)
+            {
+                return new[] { "-colorspace", "bt470bg", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv" };
+            }
+
+            return new string[0];
+        }
+
+        private static string GfxcaptureSource(RecordingPlan plan, string fps, string cursor)
+        {
+            var common = $"max_framerate={fps}:capture_cursor={cursor}:display_border=0";
+
+            if (plan.Source is WindowSource window)
+            {
+                // Negative sizes round down to a multiple of 2, keeping odd-sized windows encodable.
+                return Invariant($"gfxcapture=hwnd={window.Hwnd}:{common}:width=-2:height=-2");
+            }
+
+            var monitor = plan.Source.Monitor;
+            var source = Invariant($"gfxcapture=hmonitor={monitor.HMonitor}:{common}");
+
+            if (plan.Source is RegionSource)
+            {
+                var area = plan.CaptureSize;
+                var bounds = monitor.Bounds;
+                source += Invariant(
+                    $":crop_left={area.X - bounds.X}:crop_top={area.Y - bounds.Y}:crop_right={bounds.Right - area.Right}:crop_bottom={bounds.Bottom - area.Bottom}");
+            }
+            else
+            {
+                source += ":width=-2:height=-2";
+            }
+
+            return source;
+        }
+
+        private static string Invariant(FormattableString value) => value.ToString(CultureInfo.InvariantCulture);
+    }
+}
