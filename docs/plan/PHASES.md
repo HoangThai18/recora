@@ -5,7 +5,7 @@
 | P0 | Nền móng: solution, FFmpeg tự build, CI Windows ghi thử được | done |
 | P1 | Ghi toàn màn hình kèm tiếng, tạm dừng, phím tắt, không mất video | done |
 | P2 | Đủ các chế độ quay và công cụ đi kèm | done |
-| P3 | Phát hành trên thaipro.store | doing |
+| P3 | Phát hành trên thaipro.store | done |
 
 ---
 
@@ -71,5 +71,5 @@ Bằng chứng: [docs/reviews/P0.md](../reviews/P0.md), CI [41212947105](https:/
 **Phạm vi:** bộ cài Inno Setup (cài theo người dùng, không cần quyền admin), zip portable, `SHA256SUMS.txt`, mã nguồn FFmpeg và x264 kèm Release, kiểm tra bản mới, mục Recora trên trang tải, ảnh giới thiệu.
 
 **Tiêu chí ra:**
-- [ ] CI dựng `recora-x.y.z-windows-x64-setup.exe` và `-portable.zip`, chạy thử cài và gỡ cài
-- [ ] Release `recora-0.1.0` công khai; trang `/phan-mem/recora` hiện đúng phiên bản và nút tải
+- [x] CI dựng `recora-x.y.z-windows-x64-setup.exe` và `-portable.zip`, chạy thử cài và gỡ cài
+- [x] Release `recora-0.1.0` công khai; trang `/phan-mem/recora` hiện đúng phiên bản và nút tải
