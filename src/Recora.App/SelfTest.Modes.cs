@@ -54,12 +54,36 @@ namespace Recora.App
             lines.Append($"region={video?.Path}\n");
             ok &= video != null;
 
+            // A window: a plain 800×600 form, recorded by handle (gfxcapture) or by its rectangle where WGC is missing.
+            using (var window = new Form
+            {
+                FormBorderStyle = FormBorderStyle.None,
+                StartPosition = FormStartPosition.Manual,
+                Bounds = new Rectangle(monitor.Bounds.X + 60, monitor.Bounds.Y + 60, 800, 600),
+                BackColor = System.Drawing.Color.SteelBlue,
+                Text = "Recora window test",
+                ShowInTaskbar = false,
+            })
+            {
+                window.Show();
+                window.Refresh();
+                var frame = window.Bounds;
+                var source = new WindowSource(window.Handle.ToInt64(), window.Text, new PixelRect(frame.X, frame.Y, frame.Width, frame.Height), monitor);
+                var recorded = Record(Request(source, "window", null), 2000);
+                lines.Append($"window={recorded?.Path}\n");
+                ok &= recorded != null;
+            }
+
             foreach (var format in new[] { AudioFormat.M4a, AudioFormat.Wav })
             {
                 var audio = Record(Request(new MonitorSource(monitor), "audio", format), 2000);
                 lines.Append($"audio_{format.ToString().ToLowerInvariant()}={audio?.Path}\n");
                 ok &= audio != null;
             }
+
+            // MP3 goes through Windows' Media Foundation encoder, which Windows Server may lack: reported, not required.
+            var mp3 = Record(Request(new MonitorSource(monitor), "audio", AudioFormat.Mp3), 2000);
+            lines.Append($"audio_mp3={mp3?.Path}\n");
 
             var bounds = monitor.Bounds;
             var shot = ScreenshotService.Take(new Rectangle(bounds.X, bounds.Y, bounds.Width, bounds.Height), Path.Combine(directory, "shots"), ScreenshotFormat.Png, copyToClipboard: false, sound: false);

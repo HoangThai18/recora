@@ -44,19 +44,32 @@ namespace Recora.App.UI
             };
         }
 
-        /// <summary>Returns true when the countdown ran out, false if the user pressed Esc.</summary>
-        public static Task<bool> Run(Rectangle screen, int seconds = 3)
+        /// <summary>
+        /// Shows the countdown without taking focus (a game in front must stay in front). <see cref="Done"/> is true when
+        /// it ran out, false when cancelled (the record hotkey again, or Esc if it has focus).
+        /// </summary>
+        public static Countdown Begin(Rectangle screen, int seconds = 3)
         {
             var form = new Countdown(screen, seconds);
             form.Show();
-            form.Activate();
-            return form._done.Task;
+            return form;
+        }
+
+        public Task<bool> Done => _done.Task;
+
+        public void Cancel() => Finish(false);
+
+        protected override bool ShowWithoutActivation => true;
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            WindowExclusion.Apply(this);
         }
 
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            NativeMethods.SetWindowDisplayAffinity(Handle, NativeMethods.WdaExcludeFromCapture);
             _timer.Start();
         }
 
@@ -100,6 +113,11 @@ namespace Recora.App.UI
 
         private void Finish(bool ranOut)
         {
+            if (_done.Task.IsCompleted)
+            {
+                return;
+            }
+
             _timer.Stop();
             Close();
             _done.TrySetResult(ranOut);

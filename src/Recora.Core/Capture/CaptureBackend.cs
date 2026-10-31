@@ -30,11 +30,6 @@ namespace Recora.Core.Capture
                 return CaptureBackend.Dshow;
             }
 
-            if (source is FollowMouseSource)
-            {
-                return CaptureBackend.Gdigrab;
-            }
-
             if (caps.GpuCaptureFailed)
             {
                 return CaptureBackend.Gdigrab;

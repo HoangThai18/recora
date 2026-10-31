@@ -7,8 +7,8 @@ namespace Recora.Core.Ffmpeg
     /// <summary>Webcams and capture cards as FFmpeg's DirectShow input lists them.</summary>
     public static class DshowDevices
     {
-        // [dshow @ 0000020f...] "Integrated Camera" (video)      (FFmpeg 5+; older builds print a header line instead)
-        private static readonly Regex DeviceLine = new Regex("\"(?<name>[^\"]+)\"\\s+\\((?<kind>video|audio|none)\\)", RegexOptions.Compiled);
+        // [dshow @ 0000020f...] "Integrated Camera" (video)   or   "Game Capture HD60 S" (video, audio)
+        private static readonly Regex DeviceLine = new Regex("\"(?<name>[^\"]+)\"\\s+\\((?<kinds>[a-z, ]+)\\)", RegexOptions.Compiled);
 
         public static FfmpegArgs ListCommand() =>
             new FfmpegArgs().Add("-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy");
@@ -16,7 +16,7 @@ namespace Recora.Core.Ffmpeg
         public static IReadOnlyList<string> ParseVideo(string output) =>
             DeviceLine.Matches(output)
                 .Cast<Match>()
-                .Where(m => m.Groups["kind"].Value == "video")
+                .Where(m => m.Groups["kinds"].Value.Split(',').Any(k => k.Trim() == "video"))
                 .Select(m => m.Groups["name"].Value)
                 .Distinct()
                 .ToList();

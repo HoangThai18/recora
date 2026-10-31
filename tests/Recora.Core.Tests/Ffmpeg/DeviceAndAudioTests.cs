@@ -69,7 +69,7 @@ namespace Recora.Core.Tests.Ffmpeg
             [in#0 @ 000001d2a0b6f2c0] "OBS Virtual Camera" (video)
             [in#0 @ 000001d2a0b6f2c0] "Microphone (HD Pro Webcam C920)" (audio)
             [in#0 @ 000001d2a0b6f2c0]   Alternative name "@device_cm_{33D9A762}\wave_{0A1B}"
-            [in#0 @ 000001d2a0b6f2c0] "Elgato Game Capture HD60 S" (video)
+            [in#0 @ 000001d2a0b6f2c0] "Elgato Game Capture HD60 S" (video, audio)
             Error opening input file dummy.
             """;
 
@@ -150,38 +150,8 @@ namespace Recora.Core.Tests.Ffmpeg
 
 namespace Recora.Core.Tests.Ffmpeg
 {
-    public class FollowMouseAndWebcamPreviewTests
+    public class WebcamPreviewTests
     {
-        [Fact]
-        public void FollowMouse_AlwaysUsesGdigrabThatFollowsThePointer()
-        {
-            var source = new FollowMouseSource(Monitors.Primary(), 1280, 720);
-            var plan = new RecordingPlan(source, CaptureBackendSelector.Select(source, new CaptureCapabilities(true, true)), new VideoEncoder(EncoderKind.Nvenc, VideoCodec.H264), QualityPreset.Balanced, 30, OutputScale.Original, DrawCursor: true, AudioLayout.None);
-            var input = RecordingCommand.VideoInput(plan).ToList();
-
-            Assert.Equal(CaptureBackend.Gdigrab, plan.Backend);
-            Assert.Equal("centered", input[input.IndexOf("-follow_mouse") + 1]);
-            Assert.Equal("1280x720", input[input.IndexOf("-video_size") + 1]);
-        }
-
-        [Fact]
-        public void FollowMouse_FrameNeverLargerThanItsMonitor()
-        {
-            var monitor = Monitors.Primary();
-            var area = new FollowMouseSource(monitor, 4000, 3000).Area;
-
-            Assert.Equal(monitor.Bounds.Width, area.Width);
-            Assert.Equal(monitor.Bounds.Height, area.Height);
-        }
-
-        [Fact]
-        public void PlainGdigrab_DoesNotFollowTheMouse()
-        {
-            var plan = new RecordingPlan(new MonitorSource(Monitors.Primary()), CaptureBackend.Gdigrab, new VideoEncoder(EncoderKind.X264, VideoCodec.H264), QualityPreset.Balanced, 30, OutputScale.Original, DrawCursor: true, AudioLayout.None);
-
-            Assert.DoesNotContain("-follow_mouse", RecordingCommand.VideoInput(plan));
-        }
-
         [Fact]
         public void WebcamPreview_WritesFixedSizeBgraFramesToStdout()
         {

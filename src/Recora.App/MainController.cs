@@ -64,6 +64,8 @@ namespace Recora.App
         private WebcamOverlay? _overlay;
         private bool _activeAudioOnly;
         private bool _updateAvailable;
+        private bool _preparing;
+        private Countdown? _countdown;
 
         public MainController(MainForm form, AppSettings settings, string settingsPath)
         {
@@ -129,14 +131,6 @@ namespace Recora.App
             {
                 _settings.AudioFormat = _form.Home.AudioFormats.Value;
                 SettingsChanged();
-            };
-            _form.Home.FollowMouse.CheckedChanged += (_, _) =>
-            {
-                if (!_syncingHome)
-                {
-                    _settings.RegionFollowMouse = _form.Home.FollowMouse.Checked;
-                    SettingsChanged();
-                }
             };
             _form.SelectMode(ToChoice(_settings.Mode));
         }
@@ -206,9 +200,11 @@ namespace Recora.App
             var recovered = result.Saved;
             if (result.NeedSpace > 0)
             {
-                _tray.Notify("Còn bản ghi chưa lưu được", $"{result.NeedSpace} video ghi dở lần trước cần thêm chỗ trống để lưu. Dọn bớt ổ đĩa rồi mở lại Recora.", ToolTipIcon.Warning);
+                var saved = recovered.Count > 0 ? $"Đã cứu {recovered.Count} video. " : string.Empty;
+                _tray.Notify("Còn bản ghi chưa lưu được", $"{saved}{result.NeedSpace} video ghi dở lần trước cần thêm chỗ trống để lưu. Dọn bớt ổ đĩa rồi mở lại Recora.", ToolTipIcon.Warning);
             }
-            else if (recovered.Count > 0)
+
+            if (recovered.Count > 0)
             {
                 _lastSaved = new SavedRecording(recovered[recovered.Count - 1], TimeSpan.Zero, 0);
                 _tray.Notify("Đã cứu bản ghi dở", $"{recovered.Count} video bị ngắt giữa chừng lần trước đã được lưu vào thư mục video.");
@@ -387,9 +383,7 @@ namespace Recora.App
                 var (title, detail) = mode switch
                 {
                     CaptureModeChoice.Game => ("Game", $"Bấm {hotkey} trong game: Recora ghi đúng màn hình đang chơi · {_settings.Fps} khung/giây"),
-                    CaptureModeChoice.Region => ("Chọn vùng", _settings.RegionFollowMouse
-                        ? $"Bấm Ghi ({hotkey}): khung 1280×720 đi theo con trỏ chuột"
-                        : $"Bấm Ghi ({hotkey}) rồi kéo chuột chọn vùng, hoặc bấm vào một cửa sổ"),
+                    CaptureModeChoice.Region => ("Chọn vùng", $"Bấm Ghi ({hotkey}) rồi kéo chuột chọn vùng, hoặc bấm vào một cửa sổ"),
                     CaptureModeChoice.Window => ("Cửa sổ", $"Bấm Ghi ({hotkey}) rồi bấm cửa sổ cần ghi; video bám theo cửa sổ dù bị che"),
                     CaptureModeChoice.Device => ("Webcam", device == null ? "Chưa tìm thấy webcam hay thẻ capture nào" : device + " · kèm micro nếu bật"),
                     CaptureModeChoice.AudioOnly => ("Âm thanh", "Chỉ ghi tiếng máy và micro, không ghi hình"),
@@ -400,12 +394,10 @@ namespace Recora.App
                 {
                     CaptureModeChoice.Device => HomePage.PickerKind.Devices,
                     CaptureModeChoice.AudioOnly => HomePage.PickerKind.AudioFormats,
-                    CaptureModeChoice.Region => HomePage.PickerKind.RegionOptions,
-                    CaptureModeChoice.Window => HomePage.PickerKind.None,
+                    CaptureModeChoice.Region or CaptureModeChoice.Window => HomePage.PickerKind.None,
                     _ => HomePage.PickerKind.Monitors,
                 });
                 _form.Home.ShowDevices(_videoDevices, _settings.VideoDevice);
-                _form.Home.FollowMouse.Checked = _settings.RegionFollowMouse;
                 _form.Home.AudioFormats.Value = _settings.AudioFormat;
                 _form.Home.Preview.SetPlaceholder(
                     mode == CaptureModeChoice.Device ? IconKind.Webcam : mode == CaptureModeChoice.AudioOnly ? IconKind.Audio : IconKind.Monitor,
@@ -552,7 +544,9 @@ namespace Recora.App
         private static CaptureModeChoice ToChoice(CaptureMode mode) => (CaptureModeChoice)Enum.Parse(typeof(CaptureModeChoice), mode.ToString());
 
         /// <summary>Asks FFmpeg for the webcams and capture cards (a fraction of a second, off the UI thread).</summary>
-        private async void RefreshDevices()
+        private async void RefreshDevices() => await RefreshDevicesAsync();
+
+        private async Task RefreshDevicesAsync()
         {
             var environment = _environment;
             if (environment == null)
@@ -578,10 +572,24 @@ namespace Recora.App
         /// <summary>F11: a still of what the current mode records, saved next to the videos.</summary>
         private async void Screenshot()
         {
-            if (_environment == null)
+            if (_environment == null || _preparing)
             {
                 return;
             }
+
+            _preparing = true;
+            try
+            {
+                await TakeScreenshot();
+            }
+            finally
+            {
+                _preparing = false;
+            }
+        }
+
+        private async Task TakeScreenshot()
+        {
 
             var mode = _form.Mode;
             Rectangle area;
@@ -670,6 +678,19 @@ namespace Recora.App
                 return;
             }
 
+            // A second press during the countdown cancels it; during picking or opening it is ignored, never a
+            // second recording started on top of the first.
+            if (_countdown != null)
+            {
+                _countdown.Cancel();
+                return;
+            }
+
+            if (_preparing)
+            {
+                return;
+            }
+
             switch (recorder.State)
             {
                 case SessionState.Idle:
@@ -705,6 +726,20 @@ namespace Recora.App
 
         private async Task StartRecording(Recorder recorder)
         {
+            _preparing = true;
+            try
+            {
+                await PrepareAndStart(recorder);
+            }
+            finally
+            {
+                _preparing = false;
+                _countdown = null;
+            }
+        }
+
+        private async Task PrepareAndStart(Recorder recorder)
+        {
             _lastError = null;
             _lastSaved = null;
             var mode = _form.Mode;
@@ -717,10 +752,6 @@ namespace Recora.App
             {
                 case CaptureModeChoice.Game:
                     source = new MonitorSource(GameMonitor().Target);
-                    break;
-
-                case CaptureModeChoice.Region when _settings.RegionFollowMouse:
-                    source = new FollowMouseSource(MonitorAt(new Rectangle(Cursor.Position, new Size(1, 1))).Target, 1280, 720);
                     break;
 
                 case CaptureModeChoice.Region:
@@ -777,7 +808,10 @@ namespace Recora.App
             if (_settings.Countdown && mode != CaptureModeChoice.AudioOnly)
             {
                 var screen = source is DeviceSource ? SelectedMonitor().Target.Bounds : source.Monitor.Bounds;
-                if (!await Countdown.Run(new Rectangle(screen.X, screen.Y, screen.Width, screen.Height)))
+                _countdown = Countdown.Begin(new Rectangle(screen.X, screen.Y, screen.Width, screen.Height));
+                var ranOut = await _countdown.Done;
+                _countdown = null;
+                if (!ranOut)
                 {
                     return;
                 }
@@ -806,7 +840,14 @@ namespace Recora.App
                 tracks,
                 audioOnly);
 
-            var screenModes = mode != CaptureModeChoice.Device && mode != CaptureModeChoice.AudioOnly;
+            // Click rings and the floating webcam live on the screen, so they only reach the video in screen and
+            // region captures; a window capture records that window alone.
+            var screenModes = mode != CaptureModeChoice.Device && mode != CaptureModeChoice.AudioOnly && mode != CaptureModeChoice.Window;
+            if (screenModes && _settings.WebcamOverlay && _videoDevices.Count == 0)
+            {
+                await RefreshDevicesAsync();
+            }
+
             StartExtras(screenModes, source);
             _timer.Start();
             await recorder.StartAsync(request);
@@ -826,6 +867,7 @@ namespace Recora.App
                 SaveSettings();
                 RefreshHome();
             }
+        
         }
 
         private async Task StopRecording(Recorder recorder)
@@ -924,12 +966,18 @@ namespace Recora.App
             }
 
             var device = _videoDevices.Contains(_settings.VideoDevice) ? _settings.VideoDevice : _videoDevices.FirstOrDefault();
+            if (_settings.WebcamOverlay && device == null)
+            {
+                _tray.Notify("Không có webcam", "Webcam nổi đang bật nhưng không tìm thấy webcam nào. Video vẫn ghi bình thường.", ToolTipIcon.Warning);
+            }
+
             if (_settings.WebcamOverlay && device != null && _environment != null)
             {
                 try
                 {
-                    var screen = source.Monitor.Bounds;
-                    _overlay = new WebcamOverlay(_environment.FfmpegPath, device, new Rectangle(screen.X, screen.Y, screen.Width, screen.Height));
+                    // Inside the recorded area, or it would not be in the video.
+                    var area = source.Area;
+                    _overlay = new WebcamOverlay(_environment.FfmpegPath, device, new Rectangle(area.X, area.Y, area.Width, area.Height));
                     _overlay.Show();
                 }
                 catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException)
