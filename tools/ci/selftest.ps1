@@ -13,13 +13,21 @@ Get-Content (Join-Path $out 'selftest.json') -Raw | Write-Host
 if ($process.ExitCode -ne 0) { throw "selftest exited with $($process.ExitCode)" }
 
 $mp4 = Join-Path $out 'selftest.mp4'
-$probe = & $ffprobe -v error -show_entries 'stream=codec_type,codec_name,width,height,start_time:format=duration' -of json $mp4 | ConvertFrom-Json
+$probe = & $ffprobe -v error -show_entries 'stream=codec_type,codec_name,width,height,start_time,duration:format=duration' -of json $mp4 | ConvertFrom-Json
 $probe | ConvertTo-Json -Depth 5 | Write-Host
 $video = @($probe.streams | Where-Object codec_type -eq 'video')
 $audio = @($probe.streams | Where-Object codec_type -eq 'audio')
-$duration = [double]::Parse($probe.format.duration, [Globalization.CultureInfo]::InvariantCulture)
+$inv = [Globalization.CultureInfo]::InvariantCulture
+$duration = [double]::Parse($probe.format.duration, $inv)
 if ($video.Count -ne 1 -or $audio.Count -ne 1) { throw "expected 1 video + 1 audio stream, got $($video.Count) + $($audio.Count)" }
-if ([math]::Abs($duration - 3.0) -gt 0.5) { throw "duration $duration s is outside 3 +- 0.5 s" }
+
+# Sound and picture must last equally long: the audio pump follows the wall clock like the capture does.
+# (FFmpeg's reported out_time lags capture by the encoder's delay, so the total itself is only sanity-checked.)
+$videoSeconds = [double]::Parse($video[0].duration, $inv)
+$audioSeconds = [double]::Parse($audio[0].duration, $inv)
+Write-Host ("video {0:N3} s, audio {1:N3} s, file {2:N3} s" -f $videoSeconds, $audioSeconds, $duration)
+if ([math]::Abs($videoSeconds - $audioSeconds) -gt 0.2) { throw "audio ($audioSeconds s) and video ($videoSeconds s) lengths differ by more than 0.2 s" }
+if ($duration -lt 2.5 -or $duration -gt 6.0) { throw "duration $duration s is outside the 2.5-6 s sanity range" }
 
 # The test tone must really be in the file: decode to mono float and measure its RMS (a 0.2 sine gives ~0.14).
 $raw = Join-Path $out 'audio.f32'

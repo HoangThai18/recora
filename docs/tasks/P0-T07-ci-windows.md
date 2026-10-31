@@ -23,7 +23,7 @@ Mỗi lần push, CI trên `windows-latest` build app, chạy test, chạy selft
 
 ## Acceptance criteria
 - [ ] CI xanh trên `phase/P0`; artifact zip dưới 20 MB; ảnh cửa sổ có trong artifact
-- [ ] ffprobe: 1 luồng hình, 1 luồng tiếng, thời lượng 3 ± 0,5 giây
+- [ ] ffprobe: 1 luồng hình, 1 luồng tiếng, thời lượng hình và tiếng lệch nhau dưới 0,2 giây, cả file trong 2,5–6 giây; tiếng thử 440 Hz có trong file (RMS > 0,05)
 
 ## Security
 None.
@@ -35,4 +35,5 @@ Xem lượt chạy CI trên nhánh `phase/P0`.
 - Bộ cài, Release (P3)
 
 ## Notes / decisions
+- 2026-10-31, lượt CI [41209176637](https://github.com/HoangThai18/recora/actions/runs/41209176637): selftest OK nhưng file dài 4,25 giây dù dừng khi `out_time` = 2,75 giây. `out_time` là thời gian đã mux, trễ hơn thời điểm bắt hình bởi độ trễ của bộ mã hoá (lookahead, B-frame, luồng của x264), nên "3 ± 0,5 giây" không đo tính đúng. Đổi sang so độ dài luồng hình với luồng tiếng (thứ quyết định đồng bộ) và kiểm tiếng thật có trong file.
 - 2026-10-31, lượt CI [41208875155](https://github.com/HoangThai18/recora/actions/runs/41208875155): ghi được thật (gdigrab + x264 + tiếng qua pipe) nhưng lộ 2 lỗi của P0-T04/T06, sửa luôn trong task này (thêm vào phạm vi: `ProbeCommand.cs`, `ProbeCommandTests.cs`, `AudioPump.cs`, `SelfTest.cs`): FFmpeg 8.1 in 2 cột cờ cho `-filters` (test cũ dựng theo giả định 3 cột); FFmpeg treo sau `q` vì app ngừng bơm tiếng trước, luồng đọc pipe kẹt chờ dữ liệu.
