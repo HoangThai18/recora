@@ -3,7 +3,7 @@ id: P1-T07
 title: Chốt P1 trên CI - Recora không lọt vào video của chính nó, bằng chứng cho tiêu chí ra
 phase: P1
 lane: QA
-status: todo
+status: doing
 deps: [P1-T05, P1-T06]
 touches: [tools/ci/**, .github/workflows/ci.yml, src/Recora.App/SelfTest*.cs, src/Recora.App/Program.cs, docs/plan/PHASES.md]
 size: M
