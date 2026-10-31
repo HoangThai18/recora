@@ -87,7 +87,7 @@ namespace Recora.App.Audio
         private const int ChunkFrames = RecordingCommand.AudioSampleRate / 10;
         private readonly List<Worker> _workers;
         private volatile bool _stopping;
-        private volatile bool _endExpected;
+        private volatile bool _draining;
 
         public AudioPump(IReadOnlyList<AudioTrackSpec> tracks)
         {
@@ -111,11 +111,34 @@ namespace Recora.App.Audio
             }
         }
 
+        /// <summary>Audio frames each track has written so far: the exact length of its audio in the segment.</summary>
+        public IReadOnlyList<long> FramesSent => _workers.Select(w => w.FramesSent).ToList();
+
         /// <summary>
-        /// Call right before asking FFmpeg to quit. Writing goes on (FFmpeg's demuxer thread sits in a blocking read on
-        /// the pipe and only notices the quit once data arrives), and the broken pipe at FFmpeg's exit is not a failure.
+        /// The clean way to end a segment: stop writing now, wait until FFmpeg has read everything still queued in the
+        /// pipes, then close them (EOF). Only afterwards send FFmpeg its <c>q</c>. FFmpeg's scheduler holds audio back to
+        /// the pace of the video encoder, so a <c>q</c> sent first would drop that queued tail (up to half a second on
+        /// a slow CPU encoder, measured on CI).
         /// </summary>
-        public void ExpectDisconnect() => _endExpected = true;
+        public bool Drain(TimeSpan timeout)
+        {
+            _draining = true;
+            var deadline = DateTime.UtcNow + timeout;
+            var drained = true;
+
+            foreach (var worker in _workers)
+            {
+                var left = deadline - DateTime.UtcNow;
+                drained &= worker.WaitDrained(left > TimeSpan.Zero ? left : TimeSpan.Zero);
+            }
+
+            if (!drained)
+            {
+                Log.Warn("audio pipes not drained in time; the last moments of sound may be missing");
+            }
+
+            return drained;
+        }
 
         public void Stop()
         {
@@ -134,7 +157,9 @@ namespace Recora.App.Audio
             private readonly AudioTrackSpec _track;
             private readonly NamedPipeServerStream _pipe;
             private readonly CancellationTokenSource _cancel = new CancellationTokenSource();
+            private readonly ManualResetEventSlim _drained = new ManualResetEventSlim();
             private readonly Thread _thread;
+            private long _framesSent;
 
             public Worker(AudioPump owner, AudioTrackSpec track, string pipeName)
             {
@@ -147,7 +172,11 @@ namespace Recora.App.Audio
 
             public string PipeName { get; }
 
+            public long FramesSent => Interlocked.Read(ref _framesSent);
+
             public void Start() => _thread.Start();
+
+            public bool WaitDrained(TimeSpan timeout) => _drained.Wait(timeout);
 
             public void Stop()
             {
@@ -182,8 +211,14 @@ namespace Recora.App.Audio
                     var clock = Stopwatch.StartNew();
                     _owner.Connected?.Invoke(_track.Name, Stopwatch.GetTimestamp());
                     Pump(clock);
+
+                    if (_owner._draining)
+                    {
+                        _pipe.WaitForPipeDrain();
+                        _pipe.Dispose();
+                    }
                 }
-                catch (Exception error) when ((_owner._stopping || _owner._endExpected) && (error is IOException || error is ObjectDisposedException || error is OperationCanceledException))
+                catch (Exception error) when ((_owner._stopping || _owner._draining) && (error is IOException || error is ObjectDisposedException || error is OperationCanceledException))
                 {
                     // Expected: Stop() closed the pipe, or FFmpeg exited first after its 'q'.
                 }
@@ -191,6 +226,10 @@ namespace Recora.App.Audio
                 {
                     Log.Error($"audio pump {_track.Name} failed", error);
                     _owner.Failed?.Invoke(_track.Name, error);
+                }
+                finally
+                {
+                    _drained.Set();
                 }
             }
 
@@ -201,7 +240,7 @@ namespace Recora.App.Audio
                 var scratch = new float[ChunkFrames * 2];
                 var bytes = new byte[ChunkFrames * 2 * sizeof(float)];
 
-                while (!_owner._stopping)
+                while (!_owner._stopping && !_owner._draining)
                 {
                     var frames = pacer.Due(clock.Elapsed);
                     if (frames == 0)
@@ -222,6 +261,7 @@ namespace Recora.App.Audio
                     Buffer.BlockCopy(mix, 0, bytes, 0, samples * sizeof(float));
                     _pipe.Write(bytes, 0, samples * sizeof(float));
                     pacer.Sent(frames);
+                    Interlocked.Exchange(ref _framesSent, pacer.FramesSent);
                 }
             }
         }

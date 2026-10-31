@@ -23,7 +23,7 @@ Mỗi lần push, CI trên `windows-latest` build app, chạy test, chạy selft
 
 ## Acceptance criteria
 - [ ] CI xanh trên `phase/P0`; artifact zip dưới 20 MB; ảnh cửa sổ có trong artifact
-- [ ] ffprobe: 1 luồng hình, 1 luồng tiếng, cả file trong 2,5–6 giây, tiếng thử có trong file (RMS > 0,05)
+- [ ] ffprobe: 1 luồng hình, 1 luồng tiếng dài bằng nhau (lệch ≤ 0,15 giây), cả file trong 2,5–6 giây, tiếng thử có trong file (RMS > 0,05)
 - [ ] Đồng bộ đo trực tiếp: màn hình đổi trắng và tiếng bíp bắt đầu cùng lúc; trong file, khung trắng đầu tiên trừ mẫu tiếng đầu tiên nằm trong -100…+150 ms
 
 ## Security
@@ -36,6 +36,7 @@ Xem lượt chạy CI trên nhánh `phase/P0`.
 - Bộ cài, Release (P3)
 
 ## Notes / decisions
+- 2026-10-31, lượt CI [41210439903](https://github.com/HoangThai18/recora/actions/runs/41210439903): đuôi tiếng hụt tới 0,53 giây (dao động theo tốc độ runner), nên sửa tận gốc thay vì nới ngưỡng: `AudioPump.Drain` chờ FFmpeg đọc hết pipe rồi mới `q`, và hoàn tất cắt mỗi đoạn ở độ dài tiếng (`outpoint` của concat). Bước kiểm quay lại đòi hai luồng dài bằng nhau.
 - 2026-10-31, lượt CI [41210004445](https://github.com/HoangThai18/recora/actions/runs/41210004445) xanh (đồng bộ: hình trễ tiếng 45 ms; zip 5,3 MB). Ảnh 150% cho thấy form dựng bằng code không tự phóng theo DPI (thiếu `SuspendLayout`/`ResumeLayout` quanh `AutoScaleDimensions`): chữ to mà khung không to. Sửa trong `MainForm.cs`, nới ô chế độ, tăng chiều cao cửa sổ để thẻ cuối không bị cắt (thêm `src/Recora.App/UI/**` vào phạm vi).
 - 2026-10-31, lượt CI [41209633975](https://github.com/HoangThai18/recora/actions/runs/41209633975): sau khi sửa dò input, đầu file còn lệch ~0,05 giây; phần lệch 0,26 giây nằm ở **cuối**: bộ lập lịch FFmpeg 7+ không cho luồng tiếng chạy trước luồng hình, x264 trên CPU yếu (tốc độ 0,92x) trễ ~0,26 giây, nên chừng ấy tiếng còn trong pipe lúc `q` bị bỏ. Độ dài không phân biệt được lệch đầu (lỗi đồng bộ) với hụt đuôi (vô hại), nên thêm phép đo đồng bộ trực tiếp bằng mốc chớp trắng + tiếng bíp; độ dài chỉ còn kiểm tiếng không dài hơn hình và hụt không quá 0,5 giây.
 - 2026-10-31, lượt CI [41209388443](https://github.com/HoangThai18/recora/actions/runs/41209388443): bước kiểm mới bắt lỗi đồng bộ thật: hình 4,19 giây, tiếng 3,52 giây. `-probesize 100M` của gdigrab bắt FFmpeg dò nhiều khung trước khi mở pipe tiếng. Sửa trong `RecordingCommand.cs` (thêm vào phạm vi) và thêm test hồi quy `VideoInput_ProbesOneFrameOnly_*`.

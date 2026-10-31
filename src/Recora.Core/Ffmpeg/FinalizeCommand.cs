@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text;
 using Recora.Core.Encoding;
 using Recora.Core.Recording;
@@ -6,19 +8,32 @@ using Recora.Core.Recording;
 namespace Recora.Core.Ffmpeg
 {
     /// <summary>
+    /// One segment to join. <see cref="OutPointSeconds"/> cuts it at the length of its audio: video keeps capturing while
+    /// the audio pipe drains at stop, and that extra tail would otherwise end the file with picture but no sound.
+    /// </summary>
+    public sealed record ConcatEntry(string Path, double? OutPointSeconds = null);
+
+    /// <summary>
     /// Joins a session's segments into the final file by copying streams: nothing is re-encoded, so finishing a long
     /// recording takes seconds and costs no quality.
     /// </summary>
     public static class FinalizeCommand
     {
         /// <summary>Contents of the concat demuxer list. Paths go in single quotes; a quote inside becomes <c>'\''</c>.</summary>
-        public static string ConcatList(IEnumerable<string> segmentPaths)
+        public static string ConcatList(IEnumerable<string> segmentPaths) =>
+            ConcatList(segmentPaths.Select(path => new ConcatEntry(path)));
+
+        public static string ConcatList(IEnumerable<ConcatEntry> segments)
         {
             var list = new StringBuilder("ffconcat version 1.0\n");
 
-            foreach (var path in segmentPaths)
+            foreach (var segment in segments)
             {
-                list.Append("file '").Append(path.Replace("'", @"'\''")).Append("'\n");
+                list.Append("file '").Append(segment.Path.Replace("'", @"'\''")).Append("'\n");
+                if (segment.OutPointSeconds is double outPoint)
+                {
+                    list.Append("outpoint ").Append(outPoint.ToString("0.000", CultureInfo.InvariantCulture)).Append('\n');
+                }
             }
 
             return list.ToString();

@@ -23,6 +23,24 @@ namespace Recora.Core.Tests.Ffmpeg
         }
 
         [Fact]
+        public void ConcatList_WithOutPoints_CutsEachSegmentAtItsAudioLength()
+        {
+            var list = FinalizeCommand.ConcatList(new[]
+            {
+                new ConcatEntry(@"C:\s\001.mkv", 2.5),
+                new ConcatEntry(@"C:\s\002.mkv", 1.0004),
+                new ConcatEntry(@"C:\s\003.mkv"),
+            });
+
+            Assert.Equal(
+                "ffconcat version 1.0\n" +
+                "file 'C:\\s\\001.mkv'\noutpoint 2.500\n" +
+                "file 'C:\\s\\002.mkv'\noutpoint 1.000\n" +
+                "file 'C:\\s\\003.mkv'\n",
+                list);
+        }
+
+        [Fact]
         public void Build_Mp4WithHevc_TagsHvc1AndCopiesStreams()
         {
             var args = FinalizeCommand.Build("list.txt", "out.mp4", ContainerFormat.Mp4, VideoCodec.Hevc).Items.ToList();

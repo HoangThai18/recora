@@ -72,7 +72,7 @@ namespace Recora.App
             RecordSegment(ffmpeg, plan, segment, report);
 
             var list = Path.Combine(directory, "segments.txt");
-            File.WriteAllText(list, FinalizeCommand.ConcatList(new[] { segment }), new UTF8Encoding(false));
+            File.WriteAllText(list, FinalizeCommand.ConcatList(new[] { new ConcatEntry(segment, report.AudioSeconds) }), new UTF8Encoding(false));
             var output = Path.Combine(directory, "selftest.mp4");
             var finalize = FfmpegProcess.Run(ffmpeg, FinalizeCommand.Build(list, output, ContainerFormat.Mp4, plan.Encoder.Codec), TimeSpan.FromMinutes(1));
             report.FinalizeExitCode = finalize.ExitCode;
@@ -171,7 +171,8 @@ namespace Recora.App
                     }
 
                     report.SecondsToReachTarget = clock.Elapsed.TotalSeconds;
-                    pump.ExpectDisconnect();
+                    report.AudioDrained = pump.Drain(TimeSpan.FromSeconds(3));
+                    report.AudioSeconds = pump.FramesSent[0] / (double)RecordingCommand.AudioSampleRate;
                     process.RequestStop();
 
                     if (!process.WaitForExit(TimeSpan.FromSeconds(15)))
@@ -245,6 +246,8 @@ namespace Recora.App
         [DataMember(Order = 15)] public string? SegmentErrorTail { get; set; }
         [DataMember(Order = 16)] public string? FinalizeErrorTail { get; set; }
         [DataMember(Order = 18)] public double FlashLateMilliseconds { get; set; }
+        [DataMember(Order = 19)] public double AudioSeconds { get; set; }
+        [DataMember(Order = 20)] public bool AudioDrained { get; set; }
         [DataMember(Order = 17)] public string? Error { get; set; }
     }
 

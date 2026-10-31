@@ -21,12 +21,12 @@ $inv = [Globalization.CultureInfo]::InvariantCulture
 $duration = [double]::Parse($probe.format.duration, $inv)
 if ($video.Count -ne 1 -or $audio.Count -ne 1) { throw "expected 1 video + 1 audio stream, got $($video.Count) + $($audio.Count)" }
 
-# Lengths: FFmpeg's scheduler keeps audio from running ahead of video, so when 'q' arrives the audio still queued
-# in the pipe (about the video encoder's delay) is dropped; audio may end a little early, never late.
+# Lengths: at stop the app drains the audio pipe before 'q' and cuts the segment at the audio length, so both
+# tracks must end together (FFmpeg's scheduler would otherwise drop the audio still queued behind the encoder).
 $videoSeconds = [double]::Parse($video[0].duration, $inv)
 $audioSeconds = [double]::Parse($audio[0].duration, $inv)
 Write-Host ("video {0:N3} s, audio {1:N3} s, file {2:N3} s" -f $videoSeconds, $audioSeconds, $duration)
-if ($audioSeconds - $videoSeconds -gt 0.1 -or $videoSeconds - $audioSeconds -gt 0.5) { throw "audio ($audioSeconds s) vs video ($videoSeconds s) lengths are off" }
+if ([math]::Abs($videoSeconds - $audioSeconds) -gt 0.15) { throw "audio ($audioSeconds s) and video ($videoSeconds s) lengths differ by more than 0.15 s" }
 if ($duration -lt 2.5 -or $duration -gt 6.0) { throw "duration $duration s is outside the 2.5-6 s sanity range" }
 
 # The test tone must really be in the file: decode to mono float and measure its RMS (a 0.2 sine gives ~0.14).
