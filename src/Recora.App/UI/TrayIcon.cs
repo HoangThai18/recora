@@ -67,7 +67,7 @@ namespace Recora.App.UI
             var busy = state == SessionState.Recording || state == SessionState.Paused || state == SessionState.Starting;
             _icon.Icon = state == SessionState.Paused ? _pausedIcon : busy ? _recordingIcon : _idleIcon;
             _record.Text = busy ? "Dừng và lưu" : "Bắt đầu ghi";
-            _record.Enabled = state != SessionState.Finalizing;
+            _record.Enabled = state != SessionState.Finalizing && state != SessionState.Starting;
             _pause.Enabled = state == SessionState.Recording || state == SessionState.Paused;
             _pause.Text = state == SessionState.Paused ? "Ghi tiếp" : "Tạm dừng";
 
