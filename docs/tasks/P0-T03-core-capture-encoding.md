@@ -3,7 +3,7 @@ id: P0-T03
 title: Core - FfmpegArgs, nguồn hình, danh mục bộ mã hoá và mức chất lượng
 phase: P0
 lane: DESKTOP
-status: todo
+status: doing
 deps: [P0-T01]
 touches: [src/Recora.Core/Ffmpeg/FfmpegArgs.cs, src/Recora.Core/Capture/**, src/Recora.Core/Encoding/**, tests/Recora.Core.Tests/Ffmpeg/FfmpegArgsTests.cs, tests/Recora.Core.Tests/Capture/**, tests/Recora.Core.Tests/Encoding/**]
 size: M
