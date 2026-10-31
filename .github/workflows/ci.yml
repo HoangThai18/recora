@@ -131,6 +131,10 @@ jobs:
         shell: pwsh
         run: tools/ci/ui-screenshots.ps1
 
+      - name: Cửa sổ Recora không lọt vào video của chính nó
+        shell: pwsh
+        run: tools/ci/exclusion-check.ps1
+
       - name: Đóng gói zip portable
         id: package
         shell: pwsh
