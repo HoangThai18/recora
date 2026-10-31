@@ -14,3 +14,7 @@ ffmpeg.exe
   Mã nguồn tương ứng của đúng bản ffmpeg.exe này (tarball FFmpeg 8.1.3, gói nguồn x264 của MSYS2,
   script build tools/ffmpeg/build.sh) được đính kèm ở mỗi bản phát hành trên
   https://github.com/HoangThai18/recora/releases
+
+NAudio.Core.dll, NAudio.Wasapi.dll
+  NAudio 2.2.1 (https://github.com/naudio/NAudio), giấy phép MIT, Copyright 2020 Mark Heath
+  (licenses/NAudio-LICENSE.txt). Recora dùng để thu tiếng loa và micro qua WASAPI.

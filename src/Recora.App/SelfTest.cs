@@ -68,6 +68,13 @@ namespace Recora.App
                 report.Monitors.Add($"{info.Name}: {info.Target.DeviceName} {info.Target.Bounds} adapter \"{info.AdapterName}\" ({info.Target.Vendor}) dda output {info.Target.DdaOutputIndex?.ToString() ?? "-"}{(info.Target.IsPrimary ? " primary" : string.Empty)}");
             }
 
+            // CI runners have no sound card: listing must work and say so, recording goes on with the test tone.
+            var speakers = AudioDevices.Speakers();
+            var microphones = AudioDevices.Microphones();
+            report.AudioDevices = speakers.Count + microphones.Count == 0
+                ? "không có thiết bị âm thanh"
+                : $"{speakers.Count} loa ({string.Join(", ", speakers.Select(d => d.Name))}), {microphones.Count} micro";
+
             var primary = monitors.FirstOrDefault(m => m.Target.IsPrimary) ?? monitors[0];
             var source = new MonitorSource(primary.Target);
             var plan = FirstWorkingPlan(ffmpeg, source, caps, encoders, report)
@@ -249,6 +256,7 @@ namespace Recora.App
         [DataMember(Order = 19)] public double AudioSeconds { get; set; }
         [DataMember(Order = 20)] public bool AudioDrained { get; set; }
         [DataMember(Order = 21)] public List<string> Monitors { get; set; } = new List<string>();
+        [DataMember(Order = 22)] public string? AudioDevices { get; set; }
         [DataMember(Order = 17)] public string? Error { get; set; }
     }
 
