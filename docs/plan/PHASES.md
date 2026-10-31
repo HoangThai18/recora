@@ -44,12 +44,12 @@ Bằng chứng: [docs/reviews/P0.md](../reviews/P0.md), CI [41212947105](https:/
 - Cài đặt: chất lượng, FPS, codec, bộ mã hoá, định dạng, thư mục lưu, con trỏ chuột
 - Phím tắt toàn cục, khay hệ thống, thư viện file
 
-**Tiêu chí ra:**
-- [ ] Selftest trên CI: hai đoạn (có tạm dừng) ghép thành một MP4, thời lượng bằng tổng
-- [ ] Test Core cho mọi bộ mã hoá × codec × nguồn
-- [ ] Giết tiến trình giữa chừng rồi mở lại: file được hoàn tất (`--selftest-crash` rồi `--recover`)
-- [ ] Ảnh chụp cửa sổ chính ở các tab Video, Âm thanh, Phím tắt, Chung, Thư viện
-- [ ] Cửa sổ Recora không lọt vào video của chính nó (`--selftest-exclusion`)
+**Tiêu chí ra:** (bằng chứng: CI [41215015158](https://github.com/HoangThai18/recora/actions/runs/41215015158), docs/reviews/P1-T05.md, P1-T07.md)
+- [x] Selftest trên CI: hai đoạn (có tạm dừng) ghép thành một MP4, thời lượng bằng tổng
+- [x] Test Core cho mọi bộ mã hoá × codec × nguồn
+- [x] Giết tiến trình giữa chừng rồi mở lại: file được hoàn tất (`--selftest-crash` rồi `--recover`)
+- [x] Ảnh chụp cửa sổ chính ở các tab Video, Âm thanh, Phím tắt, Chung, Thư viện
+- [x] Cửa sổ Recora không lọt vào video của chính nó (`--selftest-exclusion`)
 
 ---
 
