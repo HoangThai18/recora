@@ -2,7 +2,7 @@
 
 | Phase | Mục tiêu | Trạng thái |
 |---|---|---|
-| P0 | Nền móng: solution, FFmpeg tự build, CI Windows ghi thử được | doing |
+| P0 | Nền móng: solution, FFmpeg tự build, CI Windows ghi thử được | done |
 | P1 | Ghi toàn màn hình kèm tiếng, tạm dừng, phím tắt, không mất video | todo |
 | P2 | Đủ các chế độ quay và công cụ đi kèm | todo |
 | P3 | Phát hành trên thaipro.store | todo |
@@ -20,10 +20,12 @@
 - CI: build, test, selftest, kiểm file bằng ffprobe, đóng gói zip
 
 **Tiêu chí ra (kiểm được):**
-- [ ] `dotnet test` xanh trên Mac và trên CI
-- [ ] CI xanh: `ffmpeg.exe` dưới 20 MB, có `ddagrab`, `h264_nvenc`, `h264_amf`, `h264_qsv`, `h264_mf`, `libx264`
-- [ ] `Recora.exe --selftest` trên runner tạo MP4 có một luồng hình và một luồng tiếng, thời lượng 3 ± 0,5 giây (ffprobe)
-- [ ] Artifact zip portable dưới 20 MB, kèm ảnh chụp cửa sổ chính
+- [x] `dotnet test` xanh trên Mac và trên CI
+- [x] CI xanh: `ffmpeg.exe` dưới 20 MB, có `ddagrab`, `h264_nvenc`, `h264_amf`, `h264_qsv`, `h264_mf`, `libx264`
+- [x] `Recora.exe --selftest` trên runner tạo MP4 có một luồng hình và một luồng tiếng, thời lượng 3 ± 0,5 giây (ffprobe)
+- [x] Artifact zip portable dưới 20 MB, kèm ảnh chụp cửa sổ chính
+
+Bằng chứng: [docs/reviews/P0.md](../reviews/P0.md), CI [41212947105](https://github.com/HoangThai18/recora/actions/runs/41212947105).
 
 **Thiết kế cần có:** bố cục cửa sổ chính (thanh chế độ, menu trái, nút Ghi đỏ, thanh trạng thái), giao diện sáng xanh pastel của thaipro.store.
 
