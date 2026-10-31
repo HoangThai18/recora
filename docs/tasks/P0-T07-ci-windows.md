@@ -35,5 +35,6 @@ Xem lượt chạy CI trên nhánh `phase/P0`.
 - Bộ cài, Release (P3)
 
 ## Notes / decisions
+- 2026-10-31, lượt CI [41209388443](https://github.com/HoangThai18/recora/actions/runs/41209388443): bước kiểm mới bắt lỗi đồng bộ thật: hình 4,19 giây, tiếng 3,52 giây. `-probesize 100M` của gdigrab bắt FFmpeg dò nhiều khung trước khi mở pipe tiếng. Sửa trong `RecordingCommand.cs` (thêm vào phạm vi) và thêm test hồi quy `VideoInput_ProbesOneFrameOnly_*`.
 - 2026-10-31, lượt CI [41209176637](https://github.com/HoangThai18/recora/actions/runs/41209176637): selftest OK nhưng file dài 4,25 giây dù dừng khi `out_time` = 2,75 giây. `out_time` là thời gian đã mux, trễ hơn thời điểm bắt hình bởi độ trễ của bộ mã hoá (lookahead, B-frame, luồng của x264), nên "3 ± 0,5 giây" không đo tính đúng. Đổi sang so độ dài luồng hình với luồng tiếng (thứ quyết định đồng bộ) và kiểm tiếng thật có trong file.
 - 2026-10-31, lượt CI [41208875155](https://github.com/HoangThai18/recora/actions/runs/41208875155): ghi được thật (gdigrab + x264 + tiếng qua pipe) nhưng lộ 2 lỗi của P0-T04/T06, sửa luôn trong task này (thêm vào phạm vi: `ProbeCommand.cs`, `ProbeCommandTests.cs`, `AudioPump.cs`, `SelfTest.cs`): FFmpeg 8.1 in 2 cột cờ cho `-filters` (test cũ dựng theo giả định 3 cột); FFmpeg treo sau `q` vì app ngừng bơm tiếng trước, luồng đọc pipe kẹt chờ dữ liệu.
