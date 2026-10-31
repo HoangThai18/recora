@@ -3,7 +3,7 @@ id: P1-T05
 title: Recorder - phiên nhiều đoạn, tạm dừng, tự lùi bộ mã hoá, hoàn tất, khôi phục; dò bộ mã hoá lúc mở app
 phase: P1
 lane: DESKTOP
-status: review
+status: done
 deps: [P1-T01, P1-T02, P1-T03, P1-T04]
 touches: [src/Recora.App/Recording/Recorder.cs, src/Recora.App/Recording/Session.cs, src/Recora.App/Recording/Finalizer.cs, src/Recora.App/Recording/EncoderMemory.cs, src/Recora.App/Recording/RecoveryService.cs, src/Recora.App/Recording/CaptureEnvironment.cs, src/Recora.App/SelfTest*.cs, src/Recora.App/Program.cs, src/Recora.App/Recording/LibraryFiles.cs, src/Recora.Core/Library/**, tests/Recora.Core.Tests/Library/**, tools/ci/recorder-checks.ps1, .github/workflows/ci.yml]
 size: L

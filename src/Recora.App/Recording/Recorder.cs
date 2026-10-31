@@ -214,6 +214,7 @@ namespace Recora.App.Recording
                     }
 
                     failures.Add($"{backend}/{encoder.FfmpegName}: {outcome}");
+                    Log.Warn($"candidate {backend}/{encoder.FfmpegName} failed: {outcome}");
                     _memory.Failed(encoder);
 
                     // A capture that cannot even open fails the same way for every encoder: skip to the next backend.
