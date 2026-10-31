@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+*.user
+TestResults/
+artifacts/
+out/
+.DS_Store
+# vibe skills are installed per machine (npx skills add HoangThai18/vibe-code-pro)
+.claude/
+.agents/
