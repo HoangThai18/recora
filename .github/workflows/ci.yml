@@ -178,7 +178,7 @@ jobs:
 
   release:
     name: Phát hành lên GitHub Releases
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'recora-')
     needs: [ffmpeg, app]
     runs-on: ubuntu-latest
     permissions:

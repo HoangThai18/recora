@@ -63,7 +63,6 @@ namespace Recora.App
         private ClickHighlighter? _clicks;
         private WebcamOverlay? _overlay;
         private bool _activeAudioOnly;
-        private bool _updateAvailable;
         private bool _preparing;
         private Countdown? _countdown;
 
@@ -81,18 +80,7 @@ namespace Recora.App
             _tray.PauseClicked += (_, _) => TogglePause();
             _tray.FolderClicked += (_, _) => OpenOutputFolder();
             _tray.ExitClicked += (_, _) => RequestExit();
-            _tray.BalloonClicked += (_, _) =>
-            {
-                if (_updateAvailable)
-                {
-                    _updateAvailable = false;
-                    Process.Start(new ProcessStartInfo(AboutPage.Homepage) { UseShellExecute = true });
-                }
-                else
-                {
-                    RevealLastSaved();
-                }
-            };
+            _tray.BalloonClicked += (_, _) => RevealLastSaved();
 
             _hotkeys = new HotkeyManager();
             _hotkeys.Pressed += OnHotkey;
@@ -263,9 +251,13 @@ namespace Recora.App
             var about = new AboutPage(Program.Version, environment.FfmpegVersion);
             about.CheckUpdate.Click += async (_, _) =>
             {
+                about.CheckUpdate.Enabled = false;
                 about.ShowUpdate("Đang hỏi…");
-                var update = await UpdateService.CheckAsync();
-                about.ShowUpdate(update == null ? "Bạn đang dùng bản mới nhất." : $"Có bản {update.Version}: bấm Trang tải để tải về.");
+                var result = await UpdateService.CheckAsync();
+                about.CheckUpdate.Enabled = true;
+                about.ShowUpdate(result.Failed
+                    ? "Không hỏi được trang phát hành, thử lại sau."
+                    : result.Update == null ? "Bạn đang dùng bản mới nhất." : $"Có bản {result.Update.Version}: bấm Trang tải để tải về.");
             };
             _form.SetPage(PageKind.About, about);
         }
@@ -281,11 +273,14 @@ namespace Recora.App
         private async void CheckForUpdateLater()
         {
             await Task.Delay(TimeSpan.FromMinutes(1));
-            var update = await UpdateService.CheckAsync();
+            var update = (await UpdateService.CheckAsync()).Update;
             if (update != null && !_disposed)
             {
-                _updateAvailable = true;
-                _tray.Notify("Có Recora bản " + update.Version, "Bấm vào đây để mở trang tải bản mới.");
+                _tray.Notify(
+                    "Có Recora bản " + update.Version,
+                    "Bấm vào đây để mở trang tải bản mới.",
+                    ToolTipIcon.Info,
+                    () => Process.Start(new ProcessStartInfo(AboutPage.Homepage) { UseShellExecute = true }));
             }
         }
 

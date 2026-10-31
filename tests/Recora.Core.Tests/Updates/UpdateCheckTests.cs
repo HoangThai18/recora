@@ -32,6 +32,7 @@ namespace Recora.Core.Tests.Updates
         [InlineData("")]
         [InlineData("{\"message\":\"API rate limit exceeded\"}")]
         [InlineData("<html>")]
+        [InlineData("[null]")]
         public void Newer_GarbageOrErrors_MeanNoUpdate(string json) => Assert.Null(UpdateCheck.Newer(json, new Version(0, 1, 0)));
     }
 }

@@ -19,6 +19,7 @@ namespace Recora.App.UI
         private readonly Icon _idleIcon;
         private readonly Icon _recordingIcon;
         private readonly Icon _pausedIcon;
+        private Action? _balloonAction;
 
         public TrayIcon()
         {
@@ -47,7 +48,19 @@ namespace Recora.App.UI
                     OpenClicked?.Invoke(this, EventArgs.Empty);
                 }
             };
-            _icon.BalloonTipClicked += (_, _) => BalloonClicked?.Invoke(this, EventArgs.Empty);
+            _icon.BalloonTipClicked += (_, _) =>
+            {
+                var action = _balloonAction;
+                _balloonAction = null;
+                if (action != null)
+                {
+                    action();
+                }
+                else
+                {
+                    BalloonClicked?.Invoke(this, EventArgs.Empty);
+                }
+            };
         }
 
         public event EventHandler? OpenClicked;
@@ -75,8 +88,15 @@ namespace Recora.App.UI
             _icon.Text = tooltip.Length > 63 ? tooltip.Substring(0, 62) + "…" : tooltip;
         }
 
-        public void Notify(string title, string text, ToolTipIcon kind = ToolTipIcon.Info) =>
+        /// <summary>
+        /// Shows a balloon. A click runs <paramref name="onClick"/> when given, otherwise raises <see cref="BalloonClicked"/>;
+        /// each balloon carries its own action so clicking a later one never runs an earlier one's.
+        /// </summary>
+        public void Notify(string title, string text, ToolTipIcon kind = ToolTipIcon.Info, Action? onClick = null)
+        {
+            _balloonAction = onClick;
             _icon.ShowBalloonTip(4000, title, text, kind);
+        }
 
         public void Dispose()
         {

@@ -34,7 +34,7 @@ namespace Recora.Core.Updates
             }
 
             return releases
-                .Where(r => !r.Draft && !r.Prerelease && r.Tag != null && r.Tag.StartsWith(TagPrefix, StringComparison.Ordinal))
+                .Where(r => r != null && !r.Draft && !r.Prerelease && r.Tag != null && r.Tag.StartsWith(TagPrefix, StringComparison.Ordinal))
                 .Select(r => (Tag: r.Tag!, Ok: Version.TryParse(r.Tag!.Substring(TagPrefix.Length), out var v), Version: v))
                 .Where(r => r.Ok && r.Version > current)
                 .OrderByDescending(r => r.Version)
