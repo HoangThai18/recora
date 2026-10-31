@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Recora.App.Audio;
 using Recora.App.Logging;
 using Recora.App.Recording;
@@ -22,34 +23,65 @@ namespace Recora.App
     /// </summary>
     internal static partial class SelfTest
     {
-        /// <summary>Records 2 s, pauses 1 s, records 2 s more. CI checks the MP4 lasts about 4 s, not 5.</summary>
+        /// <summary>
+        /// Records over a black board for 2 s, pauses, turns the board red for 1 s, turns it back black, resumes over a
+        /// white board for 2 s, stops. CI then checks the MP4 is the two segments joined (length = their sum) and holds
+        /// not a single red frame: nothing shown during the pause got into the video.
+        /// </summary>
         private static void RecordWithPause(string directory, SelfTestReport report)
         {
             var folder = Path.Combine(directory, "recorder");
             var (recorder, environment) = NewRecorder();
             var request = Request(environment, folder);
-
             string? encoder = null;
-            var saved = Task.Run(async () =>
-            {
-                await recorder.StartAsync(request).ConfigureAwait(false);
-                ThrowIfNot(recorder, SessionState.Recording, "start");
-                encoder = recorder.Status().Encoder;
-                Thread.Sleep(2000);
-                await recorder.PauseAsync().ConfigureAwait(false);
-                ThrowIfNot(recorder, SessionState.Paused, "pause");
-                Thread.Sleep(1000);
-                await recorder.ResumeAsync().ConfigureAwait(false);
-                ThrowIfNot(recorder, SessionState.Recording, "resume");
-                Thread.Sleep(2000);
-                return await recorder.StopAsync().ConfigureAwait(false);
-            }).GetAwaiter().GetResult();
 
-            report.PausedOutput = saved?.Path;
-            report.PausedSeconds = saved?.Duration.TotalSeconds ?? 0;
-            report.PausedEncoder = encoder;
-            report.LeftoverSessions = Directory.Exists(Path.Combine(folder, ".recora")) ? Directory.GetDirectories(Path.Combine(folder, ".recora")).Length : 0;
-            if (saved == null)
+            using (var board = new SyncBoard())
+            {
+                board.Show();
+                board.Refresh();
+                Pump(TimeSpan.FromMilliseconds(300));
+
+                void Paint(System.Drawing.Color color) => board.Invoke(new Action(() =>
+                {
+                    board.BackColor = color;
+                    board.Refresh();
+                }));
+
+                var run = Task.Run(async () =>
+                {
+                    await recorder.StartAsync(request).ConfigureAwait(false);
+                    ThrowIfNot(recorder, SessionState.Recording, "start");
+                    encoder = recorder.Status().Encoder;
+                    Thread.Sleep(2000);
+                    await recorder.PauseAsync().ConfigureAwait(false);
+                    ThrowIfNot(recorder, SessionState.Paused, "pause");
+                    Paint(System.Drawing.Color.Red);
+                    Thread.Sleep(1000);
+                    Paint(System.Drawing.Color.Black);
+                    Thread.Sleep(300);
+                    await recorder.ResumeAsync().ConfigureAwait(false);
+                    ThrowIfNot(recorder, SessionState.Recording, "resume");
+                    Paint(System.Drawing.Color.White);
+                    Thread.Sleep(2000);
+                    return await recorder.StopAsync().ConfigureAwait(false);
+                });
+
+                // The board must keep painting while the recorder works on the thread pool.
+                while (!run.IsCompleted)
+                {
+                    Application.DoEvents();
+                    Thread.Sleep(5);
+                }
+
+                var saved = run.GetAwaiter().GetResult();
+                report.PausedOutput = saved?.Path;
+                report.PausedSeconds = saved?.Duration.TotalSeconds ?? 0;
+                report.PausedEncoder = encoder;
+            }
+
+            var sessions = Path.Combine(folder, ".recora");
+            report.LeftoverSessions = Directory.Exists(sessions) ? Directory.GetDirectories(sessions).Length : 0;
+            if (report.PausedOutput == null)
             {
                 throw new InvalidOperationException("recorder produced no file");
             }
