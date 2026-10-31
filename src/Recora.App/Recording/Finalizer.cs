@@ -89,9 +89,17 @@ namespace Recora.App.Recording
             File.Move(partial, output);
             Log.Info($"saved {output} ({new FileInfo(output).Length} bytes, {usable.Count} segment(s){(recovered ? ", recovered" : string.Empty)})");
 
-            // The video is saved: failing to tidy up (antivirus holding a segment) must not turn it into an error,
-            // but the manifest goes first so recovery never makes a second copy.
-            TryDeleteFile(Path.Combine(folder, SessionManifest.FileName));
+            // The video is saved: failing to tidy up (antivirus holding a segment) must not turn it into an error.
+            // The marker tells the next scan to just delete the folder, never to join it a second time.
+            try
+            {
+                File.WriteAllText(Path.Combine(folder, SessionManifest.SavedMarker), output);
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            {
+                TryDeleteFile(Path.Combine(folder, SessionManifest.FileName));
+            }
+
             try
             {
                 Directory.Delete(folder, recursive: true);

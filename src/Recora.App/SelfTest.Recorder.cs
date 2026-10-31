@@ -110,7 +110,7 @@ namespace Recora.App
         public static int Recover(string directory)
         {
             Log.Initialize(directory, echoToConsole: true);
-            var recovered = RecoveryService.RecoverAll(FfmpegLocator.Find(), directory);
+            var recovered = RecoveryService.RecoverAll(FfmpegLocator.Find(), directory).Saved;
             foreach (var path in recovered)
             {
                 Console.WriteLine("recovered " + path);

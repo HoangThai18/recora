@@ -189,8 +189,13 @@ namespace Recora.App
             SaveSettings();
 
             var ffmpeg = _environment.FfmpegPath;
-            var recovered = await Task.Run(() => RecoveryService.Finish(ffmpeg, leftovers));
-            if (recovered.Count > 0)
+            var result = await Task.Run(() => RecoveryService.Finish(ffmpeg, leftovers));
+            var recovered = result.Saved;
+            if (result.NeedSpace > 0)
+            {
+                _tray.Notify("Còn bản ghi chưa lưu được", $"{result.NeedSpace} video ghi dở lần trước cần thêm chỗ trống để lưu. Dọn bớt ổ đĩa rồi mở lại Recora.", ToolTipIcon.Warning);
+            }
+            else if (recovered.Count > 0)
             {
                 _lastSaved = new SavedRecording(recovered[recovered.Count - 1], TimeSpan.Zero, 0);
                 _tray.Notify("Đã cứu bản ghi dở", $"{recovered.Count} video bị ngắt giữa chừng lần trước đã được lưu vào thư mục video.");

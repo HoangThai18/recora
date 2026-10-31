@@ -243,7 +243,7 @@ namespace Recora.App.UI
             folder.Body.Controls.Add(_folder);
             var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
             ChangeFolder = new FlatButton("Đổi thư mục…") { Size = new Size(150, 34), Margin = new Padding(0, 0, 10, 0) };
-            OpenFolder = new FlatButton("Mở thư mục") { Size = new Size(130, 34) };
+            OpenFolder = new FlatButton("Mở thư mục") { Size = new Size(130, 34), Margin = Padding.Empty };
             buttons.Controls.Add(ChangeFolder);
             buttons.Controls.Add(OpenFolder);
             folder.Body.Controls.Add(buttons);
