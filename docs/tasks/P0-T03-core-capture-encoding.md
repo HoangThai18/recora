@@ -25,7 +25,7 @@ Các khối dựng lệnh cơ bản: trích dẫn dòng lệnh Windows, mô tả
 ## Acceptance criteria
 - [ ] Test trích dẫn: dấu cách, ngoặc kép, dấu `\` cuối, chuỗi rỗng khớp quy tắc `CommandLineToArgvW`
 - [ ] Test làm chẵn: 801×601 → 800×600; nhỏ hơn 160×90 → lỗi `region_too_small`
-- [ ] Test thứ tự: GPU NVIDIA → NVENC đầu; Intel → QSV đầu; AMD → AMF đầu; luôn kết thúc bằng MF rồi x264
+- [ ] Test thứ tự: GPU NVIDIA → NVENC đầu; Intel → QSV đầu; AMD → AMF đầu; luôn kết thúc bằng x264 rồi Media Foundation
 - [ ] Test thang: AV1 NVENC dùng dải 0–63, AMF AV1 dùng QVBR, mọi giá trị trong dải hợp lệ
 
 ## Security
@@ -40,3 +40,4 @@ dotnet test tests/Recora.Core.Tests
 - Lệnh ghi đầy đủ và đọc tiến độ (P0-T04)
 
 ## Notes / decisions
+- 2026-10-31: x264 đứng trước Media Foundation: cùng tốn CPU nhưng x264 cho file nhỏ hơn ở cùng độ nét; MF chỉ còn giá trị khi cần H.265 mà máy không có GPU mã hoá được. GPU ảo (`Microsoft`) bỏ qua các bộ mã hoá phần cứng để khỏi mất vài giây dò.
