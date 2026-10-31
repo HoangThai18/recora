@@ -78,12 +78,14 @@ namespace Recora.App
             {
                 var audio = Record(Request(new MonitorSource(monitor), "audio", format), 2000);
                 lines.Append($"audio_{format.ToString().ToLowerInvariant()}={audio?.Path}\n");
+                lines.Append(FormattableString.Invariant($"audio_{format.ToString().ToLowerInvariant()}_seconds={audio?.Duration.TotalSeconds ?? 0:0.000}\n"));
                 ok &= audio != null;
             }
 
             // MP3 goes through Windows' Media Foundation encoder, which Windows Server may lack: reported, not required.
             var mp3 = Record(Request(new MonitorSource(monitor), "audio", AudioFormat.Mp3), 2000);
             lines.Append($"audio_mp3={mp3?.Path}\n");
+            lines.Append(FormattableString.Invariant($"audio_mp3_seconds={mp3?.Duration.TotalSeconds ?? 0:0.000}\n"));
 
             var bounds = monitor.Bounds;
             var shot = ScreenshotService.Take(new Rectangle(bounds.X, bounds.Y, bounds.Width, bounds.Height), Path.Combine(directory, "shots"), ScreenshotFormat.Png, copyToClipboard: false, sound: false);

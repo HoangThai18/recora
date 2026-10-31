@@ -203,8 +203,7 @@ namespace Recora.App
                 var saved = recovered.Count > 0 ? $"Đã cứu {recovered.Count} video. " : string.Empty;
                 _tray.Notify("Còn bản ghi chưa lưu được", $"{saved}{result.NeedSpace} video ghi dở lần trước cần thêm chỗ trống để lưu. Dọn bớt ổ đĩa rồi mở lại Recora.", ToolTipIcon.Warning);
             }
-
-            if (recovered.Count > 0)
+            else if (recovered.Count > 0)
             {
                 _lastSaved = new SavedRecording(recovered[recovered.Count - 1], TimeSpan.Zero, 0);
                 _tray.Notify("Đã cứu bản ghi dở", $"{recovered.Count} video bị ngắt giữa chừng lần trước đã được lưu vào thư mục video.");

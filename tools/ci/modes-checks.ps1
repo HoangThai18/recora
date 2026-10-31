@@ -36,7 +36,12 @@ foreach ($key in $audioKeys) {
     $seconds = [double]::Parse($p.format.duration, $inv)
     Write-Host ("{0}: {1} ({2}, {3}) {4:N2} s" -f $key, (Split-Path $file -Leaf), $types, (@($p.streams | ForEach-Object codec_name) -join ','), $seconds)
     if ($types -ne 'audio') { throw "$key has streams '$types', expected audio only" }
-    if ([math]::Abs($seconds - 2.0) -gt 0.6) { throw "$key lasts $seconds s, expected about 2 s" }
+    # The file must last what the recorder measured (audio starts flowing a moment before "Recording", so the
+    # selftest's own 2 s sleep is not the reference), within a sane 1.5-4 s window.
+    $expected = [double]::Parse($info["${key}_seconds"], $inv)
+    Write-Host ("  recorder measured {0:N2} s" -f $expected)
+    if ([math]::Abs($seconds - $expected) -gt 0.3) { throw "$key lasts $seconds s but the recorder measured $expected s" }
+    if ($seconds -lt 1.5 -or $seconds -gt 4.0) { throw "$key lasts $seconds s, outside 1.5-4 s" }
 }
 if ([IO.Path]::GetExtension($info.audio_m4a) -ne '.m4a' -or [IO.Path]::GetExtension($info.audio_wav) -ne '.wav') { throw "wrong file extensions" }
 
