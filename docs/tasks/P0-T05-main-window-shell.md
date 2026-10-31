@@ -3,7 +3,7 @@ id: P0-T05
 title: Khung cửa sổ chính và chụp giao diện bằng --ui-screenshot
 phase: P0
 lane: DESKTOP
-status: todo
+status: doing
 deps: [P0-T01]
 touches: [src/Recora.App/UI/**, src/Recora.App/Program.cs, src/Recora.App/Recora.App.csproj, src/Recora.App/Assets/**, tools/icon/**]
 size: M
