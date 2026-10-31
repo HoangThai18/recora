@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using Recora.App.Audio;
 using Recora.App.Logging;
 using Recora.App.Native;
+using Recora.App.Platform;
 using Recora.App.Recording;
 using Recora.Core.Capture;
 using Recora.Core.Encoding;
@@ -61,7 +62,14 @@ namespace Recora.App
             report.HasDdagrab = caps.HasDdagrab;
             report.HasGfxcapture = caps.HasGfxcapture;
 
-            var source = new MonitorSource(PrimaryMonitor());
+            var monitors = MonitorService.List();
+            foreach (var info in monitors)
+            {
+                report.Monitors.Add($"{info.Name}: {info.Target.DeviceName} {info.Target.Bounds} adapter \"{info.AdapterName}\" ({info.Target.Vendor}) dda output {info.Target.DdaOutputIndex?.ToString() ?? "-"}{(info.Target.IsPrimary ? " primary" : string.Empty)}");
+            }
+
+            var primary = monitors.FirstOrDefault(m => m.Target.IsPrimary) ?? monitors[0];
+            var source = new MonitorSource(primary.Target);
             var plan = FirstWorkingPlan(ffmpeg, source, caps, encoders, report)
                 ?? throw new InvalidOperationException("no capture backend and encoder pair worked");
 
@@ -204,16 +212,6 @@ namespace Recora.App
             }
         }
 
-        private static MonitorTarget PrimaryMonitor()
-        {
-            var screen = Screen.PrimaryScreen;
-            var bounds = new PixelRect(screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height);
-            var hmonitor = NativeMethods.MonitorFromPoint(new NativeMethods.Point { X = 0, Y = 0 }, NativeMethods.MonitorDefaultToPrimary);
-
-            // DXGI enumeration arrives in P1; until then the primary screen is assumed to be output 0 of the default adapter.
-            return new MonitorTarget(screen.DeviceName, bounds, 0, hmonitor.ToInt64(), GpuVendor.Unknown, IsPrimary: true);
-        }
-
         private static string LastLines(string text, int count) =>
             string.Join(" | ", text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).Reverse().Take(count).Reverse());
 
@@ -250,6 +248,7 @@ namespace Recora.App
         [DataMember(Order = 18)] public double FlashLateMilliseconds { get; set; }
         [DataMember(Order = 19)] public double AudioSeconds { get; set; }
         [DataMember(Order = 20)] public bool AudioDrained { get; set; }
+        [DataMember(Order = 21)] public List<string> Monitors { get; set; } = new List<string>();
         [DataMember(Order = 17)] public string? Error { get; set; }
     }
 
