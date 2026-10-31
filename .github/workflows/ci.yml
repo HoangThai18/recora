@@ -90,3 +90,56 @@ jobs:
           name: ${{ steps.name.outputs.artifact }}
           path: artifacts/ffmpeg
           retention-days: 30
+
+  app:
+    name: App Windows (build, test, ghi thử, đóng gói)
+    needs: ffmpeg
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build Recora.sln -c Release
+
+      - name: Unit tests
+        run: dotnet test tests/Recora.Core.Tests -c Release --no-build
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.ffmpeg.outputs.artifact }}
+          path: artifacts/ffmpeg
+
+      - name: Self-test (ghi màn hình thật 3 giây)
+        shell: pwsh
+        run: tools/ci/selftest.ps1
+
+      - name: Chụp giao diện
+        shell: pwsh
+        run: tools/ci/ui-screenshots.ps1
+
+      - name: Đóng gói zip portable
+        id: package
+        shell: pwsh
+        run: tools/ci/package.ps1
+
+      - name: Upload selftest and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest-and-screenshots
+          path: |
+            artifacts/selftest
+            artifacts/screenshots
+          retention-days: 14
+
+      - name: Upload portable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: recora-portable
+          path: ${{ steps.package.outputs.zip }}
+          retention-days: 30

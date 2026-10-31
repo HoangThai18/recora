@@ -53,6 +53,19 @@ namespace Recora.Core.Tests.Ffmpeg
             Assert.Contains("title=Tiếng máy", args);
         }
 
+        [Theory]
+        [InlineData(CaptureBackend.Ddagrab)]
+        [InlineData(CaptureBackend.Gfxcapture)]
+        [InlineData(CaptureBackend.Gdigrab)]
+        public void VideoInput_ProbesOneFrameOnly_SoTheAudioPipeOpensRightAfterTheFirstFrame(CaptureBackend backend)
+        {
+            var input = RecordingCommand.VideoInput(Plan(backend: backend)).ToList();
+
+            Assert.Equal("32", ValueAfter(input, "-probesize"));
+            Assert.Equal("0", ValueAfter(input, "-analyzeduration"));
+            Assert.True(input.IndexOf("-probesize") < input.IndexOf("-i"));
+        }
+
         [Fact]
         public void Build_WritesProgressToStdoutAndMatroskaSegment()
         {

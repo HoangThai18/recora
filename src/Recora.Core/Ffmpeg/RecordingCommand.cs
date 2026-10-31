@@ -65,7 +65,11 @@ namespace Recora.Core.Ffmpeg
             "-f", "f32le", "-ar", Invariant($"{AudioSampleRate}"), "-ac", Invariant($"{AudioChannels}"), "-i", pipePath,
         };
 
-        /// <summary>Input 0 for the plan's backend: GPU capture through the lavfi device, or GDI on the CPU.</summary>
+        /// <summary>
+        /// Input 0 for the plan's backend: GPU capture through the lavfi device, or GDI on the CPU. Probing is cut to one
+        /// frame: video time 0 is the first captured frame, and the audio pipe only opens once probing ends, so every
+        /// probed frame would push the sound late (CI measured 0.67 s with a 100 MB probe).
+        /// </summary>
         public static IReadOnlyList<string> VideoInput(RecordingPlan plan)
         {
             var fps = Invariant($"{plan.Fps}");
@@ -84,15 +88,15 @@ namespace Recora.Core.Ffmpeg
                             $":video_size={area.Width}x{area.Height}:offset_x={area.X - monitor.Bounds.X}:offset_y={area.Y - monitor.Bounds.Y}");
                     }
 
-                    return new[] { "-f", "lavfi", "-i", dda };
+                    return new[] { "-probesize", "32", "-analyzeduration", "0", "-f", "lavfi", "-i", dda };
 
                 case CaptureBackend.Gfxcapture:
-                    return new[] { "-f", "lavfi", "-i", GfxcaptureSource(plan, fps, cursor) };
+                    return new[] { "-probesize", "32", "-analyzeduration", "0", "-f", "lavfi", "-i", GfxcaptureSource(plan, fps, cursor) };
 
                 default:
                     return new[]
                     {
-                        "-thread_queue_size", "512", "-probesize", "100M",
+                        "-thread_queue_size", "512", "-probesize", "32", "-analyzeduration", "0",
                         "-f", "gdigrab", "-framerate", fps, "-draw_mouse", cursor,
                         "-offset_x", Invariant($"{area.X}"), "-offset_y", Invariant($"{area.Y}"),
                         "-video_size", Invariant($"{area.Width}x{area.Height}"), "-i", "desktop",

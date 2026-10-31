@@ -72,10 +72,11 @@ namespace Recora.App
             RecordSegment(ffmpeg, plan, segment, report);
 
             var list = Path.Combine(directory, "segments.txt");
-            File.WriteAllText(list, FinalizeCommand.ConcatList(new[] { segment }), new UTF8Encoding(false));
+            File.WriteAllText(list, FinalizeCommand.ConcatList(new[] { new ConcatEntry(segment, report.AudioSeconds) }), new UTF8Encoding(false));
             var output = Path.Combine(directory, "selftest.mp4");
             var finalize = FfmpegProcess.Run(ffmpeg, FinalizeCommand.Build(list, output, ContainerFormat.Mp4, plan.Encoder.Codec), TimeSpan.FromMinutes(1));
             report.FinalizeExitCode = finalize.ExitCode;
+            report.FinalizeErrorTail = finalize.ExitCode == 0 ? null : LastLines(finalize.Error, 6);
             report.Output = output;
             report.OutputBytes = File.Exists(output) ? new FileInfo(output).Length : 0;
             report.Ok = finalize.ExitCode == 0 && report.OutputBytes > 0 && report.SegmentExitCode == 0;
@@ -125,28 +126,53 @@ namespace Recora.App
             return null;
         }
 
+        /// <summary>
+        /// Records over a black full-screen board. 1.5 s after FFmpeg opens the audio pipe (audio time zero) the board turns
+        /// white and the test tone starts at the same instant; CI then finds the first white frame and the first loud
+        /// sample in the MP4 and compares their times, which measures audio/video sync directly.
+        /// </summary>
         private static void RecordSegment(string ffmpeg, RecordingPlan plan, string segment, SelfTestReport report)
         {
-            var track = new AudioTrackSpec("mix", new (IAudioInput, float)[] { (new ToneInput(440, 0.2f), 1f) });
+            var marker = TimeSpan.FromSeconds(1.5);
+            var tone = new ToneInput(1000, 0.3f) { OnsetFrame = (long)(marker.TotalSeconds * RecordingCommand.AudioSampleRate) };
+            var track = new AudioTrackSpec("mix", new (IAudioInput, float)[] { (tone, 1f) });
+            long connectedAt = 0;
 
+            using (var board = new SyncBoard())
             using (var pump = new AudioPump(new[] { track }))
             {
+                board.Show();
+                board.Refresh();
+                Pump(TimeSpan.FromMilliseconds(300));
+
                 pump.Failed += (name, error) => report.AudioError = $"{name}: {error.Message}";
+                pump.Connected += (_, ticks) => Interlocked.Exchange(ref connectedAt, ticks);
                 pump.Start();
 
                 using (var process = FfmpegProcess.Start(ffmpeg, RecordingCommand.Build(plan, segment, pump.PipePaths), "selftest"))
                 {
                     var clock = Stopwatch.StartNew();
+                    var flashed = false;
 
-                    // Stop once FFmpeg reports ~3 s muxed; progress comes every 0.5 s, so aim slightly early.
                     while (!process.HasExited && clock.Elapsed < TimeSpan.FromSeconds(30)
-                        && (process.LastProgress?.OutTime ?? TimeSpan.Zero) < Target - TimeSpan.FromMilliseconds(250))
+                        && (!flashed || (process.LastProgress?.OutTime ?? TimeSpan.Zero) < TimeSpan.FromSeconds(3.25)))
                     {
-                        Thread.Sleep(50);
+                        var zero = Interlocked.Read(ref connectedAt);
+                        var due = zero + (long)(marker.TotalSeconds * Stopwatch.Frequency);
+                        if (!flashed && zero != 0 && Stopwatch.GetTimestamp() >= due)
+                        {
+                            board.Flash();
+                            report.FlashLateMilliseconds = (Stopwatch.GetTimestamp() - due) * 1000.0 / Stopwatch.Frequency;
+                            flashed = true;
+                        }
+
+                        Application.DoEvents();
+                        Thread.Sleep(1);
                     }
 
                     report.SecondsToReachTarget = clock.Elapsed.TotalSeconds;
-                    pump.BeginStop();
+                    report.AudioDrained = pump.Drain(TimeSpan.FromSeconds(3));
+                    report.AudioSeconds = pump.FramesSent[0] / (double)RecordingCommand.AudioSampleRate;
                     process.RequestStop();
 
                     if (!process.WaitForExit(TimeSpan.FromSeconds(15)))
@@ -163,6 +189,16 @@ namespace Recora.App
                 }
 
                 pump.Stop();
+            }
+        }
+
+        private static void Pump(TimeSpan duration)
+        {
+            var clock = Stopwatch.StartNew();
+            while (clock.Elapsed < duration)
+            {
+                Application.DoEvents();
+                Thread.Sleep(5);
             }
         }
 
@@ -208,7 +244,31 @@ namespace Recora.App
         [DataMember(Order = 13)] public long OutputBytes { get; set; }
         [DataMember(Order = 14)] public string? AudioError { get; set; }
         [DataMember(Order = 15)] public string? SegmentErrorTail { get; set; }
-        [DataMember(Order = 16)] public string? Error { get; set; }
+        [DataMember(Order = 16)] public string? FinalizeErrorTail { get; set; }
+        [DataMember(Order = 18)] public double FlashLateMilliseconds { get; set; }
+        [DataMember(Order = 19)] public double AudioSeconds { get; set; }
+        [DataMember(Order = 20)] public bool AudioDrained { get; set; }
+        [DataMember(Order = 17)] public string? Error { get; set; }
+    }
+
+    /// <summary>Full-screen black board that turns white at the sync marker; drawn above everything, never excluded from capture.</summary>
+    internal sealed class SyncBoard : Form
+    {
+        public SyncBoard()
+        {
+            FormBorderStyle = FormBorderStyle.None;
+            StartPosition = FormStartPosition.Manual;
+            Bounds = Screen.PrimaryScreen.Bounds;
+            BackColor = System.Drawing.Color.Black;
+            TopMost = true;
+            ShowInTaskbar = false;
+        }
+
+        public void Flash()
+        {
+            BackColor = System.Drawing.Color.White;
+            Refresh();
+        }
     }
 
     [DataContract]

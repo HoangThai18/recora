@@ -97,7 +97,7 @@ namespace Recora.App.UI
         public HomePage()
             : base("Trang chủ")
         {
-            var source = AddCard("nguồn ghi", 178);
+            var source = AddCard("nguồn ghi", 170);
             _mode = Caption(string.Empty, Theme.Title, Theme.Accent, 2);
             _source = Caption(string.Empty, Theme.Body, Theme.Muted, 2);
             _encoder = Caption(string.Empty, Theme.Mono, Theme.Text, 14);
@@ -142,9 +142,8 @@ namespace Recora.App.UI
 
         private static HotkeyHint Hint(string keys, string action)
         {
-            var hint = new HotkeyHint(keys, action) { Margin = new Padding(0, 0, 18, 0) };
-            hint.Size = hint.GetPreferredSize(Size.Empty);
-            return hint;
+            // AutoSize: measured after DPI scaling; a size computed here would be scaled a second time.
+            return new HotkeyHint(keys, action) { Margin = new Padding(0, 0, 18, 0), AutoSize = true };
         }
     }
 
