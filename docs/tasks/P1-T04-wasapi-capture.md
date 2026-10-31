@@ -3,7 +3,7 @@ id: P1-T04
 title: Bắt tiếng hệ thống và micro bằng WASAPI (NAudio), đưa về 48 kHz stereo
 phase: P1
 lane: DESKTOP
-status: done
+status: review
 deps: []
 touches: [src/Recora.App/Audio/AudioDevices.cs, src/Recora.App/Audio/WasapiSource.cs, src/Recora.App/Recora.App.csproj, THIRD-PARTY-NOTICES.txt]
 size: M
