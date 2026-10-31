@@ -63,6 +63,7 @@ namespace Recora.App
         private ClickHighlighter? _clicks;
         private WebcamOverlay? _overlay;
         private bool _activeAudioOnly;
+        private bool _updateAvailable;
         private bool _preparing;
         private Countdown? _countdown;
 
@@ -80,7 +81,18 @@ namespace Recora.App
             _tray.PauseClicked += (_, _) => TogglePause();
             _tray.FolderClicked += (_, _) => OpenOutputFolder();
             _tray.ExitClicked += (_, _) => RequestExit();
-            _tray.BalloonClicked += (_, _) => RevealLastSaved();
+            _tray.BalloonClicked += (_, _) =>
+            {
+                if (_updateAvailable)
+                {
+                    _updateAvailable = false;
+                    Process.Start(new ProcessStartInfo(AboutPage.Homepage) { UseShellExecute = true });
+                }
+                else
+                {
+                    RevealLastSaved();
+                }
+            };
 
             _hotkeys = new HotkeyManager();
             _hotkeys.Pressed += OnHotkey;
@@ -182,6 +194,7 @@ namespace Recora.App
             ShowStatus();
             SaveSettings();
 
+            CheckForUpdateLater();
             var ffmpeg = _environment.FfmpegPath;
             var result = await Task.Run(() => RecoveryService.Finish(ffmpeg, leftovers));
             var recovered = result.Saved;
@@ -247,7 +260,14 @@ namespace Recora.App
             _form.SetPage(PageKind.Screenshot, screenshots);
 
             _form.SetPage(PageKind.Library, new LibraryPage(() => LibraryFiles.Scan(OutputFolder)));
-            _form.SetPage(PageKind.About, new AboutPage(Program.Version, environment.FfmpegVersion));
+            var about = new AboutPage(Program.Version, environment.FfmpegVersion);
+            about.CheckUpdate.Click += async (_, _) =>
+            {
+                about.ShowUpdate("Đang hỏi…");
+                var update = await UpdateService.CheckAsync();
+                about.ShowUpdate(update == null ? "Bạn đang dùng bản mới nhất." : $"Có bản {update.Version}: bấm Trang tải để tải về.");
+            };
+            _form.SetPage(PageKind.About, about);
         }
 
         private AudioPage BuildAudioPage()
@@ -255,6 +275,18 @@ namespace Recora.App
             var page = new AudioPage(_settings, AudioDevices.Speakers(), AudioDevices.Microphones());
             page.Changed += (_, _) => SettingsChanged();
             return page;
+        }
+
+        /// <summary>One quiet check a minute after start; a newer release shows as a tray note linking to the download page.</summary>
+        private async void CheckForUpdateLater()
+        {
+            await Task.Delay(TimeSpan.FromMinutes(1));
+            var update = await UpdateService.CheckAsync();
+            if (update != null && !_disposed)
+            {
+                _updateAvailable = true;
+                _tray.Notify("Có Recora bản " + update.Version, "Bấm vào đây để mở trang tải bản mới.");
+            }
         }
 
         private void SettingsChanged()

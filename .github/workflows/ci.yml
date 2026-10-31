@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: ['**']
+    tags: ['recora-*']
   pull_request:
   workflow_dispatch:
 
@@ -32,8 +33,10 @@ jobs:
       # actions/cache is scoped per branch; an artifact of an earlier run with the same script hash saves the
       # 12-minute build on every new branch. Only artifacts built from this repository's own branches count: the repo
       # is public, and a fork's pull request could otherwise upload a tampered ffmpeg.exe under the same name.
+      # A release (tag) always builds FFmpeg from source in its own run: what ships is never an artifact of another run.
       - name: Reuse FFmpeg from an earlier run
         id: reuse
+        if: github.ref_type != 'tag'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -55,7 +58,7 @@ jobs:
           fi
 
       - name: Cache FFmpeg build
-        if: steps.reuse.outputs.hit != 'true'
+        if: github.ref_type != 'tag' && steps.reuse.outputs.hit != 'true'
         id: cache
         uses: actions/cache@v4
         with:
@@ -154,9 +157,66 @@ jobs:
             artifacts/screenshots
           retention-days: 14
 
+      - name: Bộ cài (cài, chạy, gỡ im lặng)
+        id: installer
+        shell: pwsh
+        run: tools/ci/installer.ps1
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: recora-setup
+          path: ${{ steps.installer.outputs.setup }}
+          retention-days: 30
+
       - name: Upload portable zip
         uses: actions/upload-artifact@v4
         with:
           name: recora-portable
           path: ${{ steps.package.outputs.zip }}
           retention-days: 30
+
+  release:
+    name: Phát hành lên GitHub Releases
+    if: github.ref_type == 'tag'
+    needs: [ffmpeg, app]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Kiểm phiên bản, gom file, tạo Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          FFMPEG: ${{ needs.ffmpeg.outputs.artifact }}
+        run: |
+          set -euo pipefail
+          version="${TAG#recora-}"
+          props=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props)
+          [ "$version" = "$props" ] || { echo "tag $TAG does not match Directory.Build.props $props"; exit 1; }
+          notes="docs/release-notes/$version.md"
+          [ -f "$notes" ] || { echo "missing $notes"; exit 1; }
+
+          mkdir -p upload
+          cp dist/recora-portable/recora-$version-windows-x64-portable.zip upload/
+          cp dist/recora-setup/recora-$version-windows-x64-setup.exe upload/
+          # GPL: the exact FFmpeg and x264 sources of the ffmpeg.exe inside these files.
+          tar -C "dist/$FFMPEG" -czf upload/recora-$version-ffmpeg-sources.tar.gz sources BUILDINFO.txt
+          (cd upload && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+          {
+            cat "$notes"
+            echo
+            echo "---"
+            echo
+            echo "Recora miễn phí, mã nguồn mở theo giấy phép MIT. ffmpeg.exe đi kèm theo GPL v2 trở lên; mã nguồn đúng bản dựng nằm trong file recora-$version-ffmpeg-sources.tar.gz. Bản cài chưa ký số nên Windows SmartScreen có thể cảnh báo lần đầu: bấm \"More info\" rồi \"Run anyway\". Đối chiếu SHA-256 trong SHA256SUMS.txt để chắc file nguyên vẹn."
+          } > body.md
+
+          gh release create "$TAG" upload/* --title "Recora $version" --notes-file body.md
+
