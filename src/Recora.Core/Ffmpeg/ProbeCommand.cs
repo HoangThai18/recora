@@ -9,8 +9,8 @@ namespace Recora.Core.Ffmpeg
     /// <summary>Asks the bundled ffmpeg.exe what it can do, and whether an encoder really works on this PC.</summary>
     public static class ProbeCommand
     {
-        // " T.C ddagrab           |->V       Grab Windows Desktop images..." -> "ddagrab"
-        private static readonly Regex FilterLine = new Regex(@"^\s*[T.][S.][C.]\s+(\S+)\s+\S*->\S*", RegexOptions.Compiled);
+        // " .. ddagrab           |->V       Grab Windows Desktop images..." -> "ddagrab" (two flag columns in FFmpeg 8.1, opt_common.c)
+        private static readonly Regex FilterLine = new Regex(@"^\s*[T.][S.]\s+(\S+)\s+\S*->\S*", RegexOptions.Compiled);
 
         // " V....D h264_nvenc           NVIDIA NVENC H.264 encoder (codec h264)" -> "h264_nvenc"
         private static readonly Regex EncoderLine = new Regex(@"^\s*[VAS][A-Z.]{5}\s+(\S+)\s", RegexOptions.Compiled);

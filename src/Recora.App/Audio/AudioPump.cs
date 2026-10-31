@@ -83,6 +83,7 @@ namespace Recora.App.Audio
         private const int ChunkFrames = RecordingCommand.AudioSampleRate / 10;
         private readonly List<Worker> _workers;
         private volatile bool _stopping;
+        private volatile bool _endExpected;
 
         public AudioPump(IReadOnlyList<AudioTrackSpec> tracks)
         {
@@ -104,10 +105,10 @@ namespace Recora.App.Audio
         }
 
         /// <summary>
-        /// Stops writing without closing the pipes. Call it right before asking FFmpeg to quit, so the pipe it closes on
-        /// exit is not reported as a failure.
+        /// Call right before asking FFmpeg to quit. Writing goes on (FFmpeg's demuxer thread sits in a blocking read on
+        /// the pipe and only notices the quit once data arrives), and the broken pipe at FFmpeg's exit is not a failure.
         /// </summary>
-        public void BeginStop() => _stopping = true;
+        public void ExpectDisconnect() => _endExpected = true;
 
         public void Stop()
         {
@@ -173,7 +174,7 @@ namespace Recora.App.Audio
 
                     Pump();
                 }
-                catch (Exception error) when (_owner._stopping && (error is IOException || error is ObjectDisposedException || error is OperationCanceledException))
+                catch (Exception error) when ((_owner._stopping || _owner._endExpected) && (error is IOException || error is ObjectDisposedException || error is OperationCanceledException))
                 {
                     // Expected: Stop() closed the pipe, or FFmpeg exited first after its 'q'.
                 }

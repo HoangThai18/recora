@@ -76,6 +76,7 @@ namespace Recora.App
             var output = Path.Combine(directory, "selftest.mp4");
             var finalize = FfmpegProcess.Run(ffmpeg, FinalizeCommand.Build(list, output, ContainerFormat.Mp4, plan.Encoder.Codec), TimeSpan.FromMinutes(1));
             report.FinalizeExitCode = finalize.ExitCode;
+            report.FinalizeErrorTail = finalize.ExitCode == 0 ? null : LastLines(finalize.Error, 6);
             report.Output = output;
             report.OutputBytes = File.Exists(output) ? new FileInfo(output).Length : 0;
             report.Ok = finalize.ExitCode == 0 && report.OutputBytes > 0 && report.SegmentExitCode == 0;
@@ -146,7 +147,7 @@ namespace Recora.App
                     }
 
                     report.SecondsToReachTarget = clock.Elapsed.TotalSeconds;
-                    pump.BeginStop();
+                    pump.ExpectDisconnect();
                     process.RequestStop();
 
                     if (!process.WaitForExit(TimeSpan.FromSeconds(15)))
@@ -208,7 +209,8 @@ namespace Recora.App
         [DataMember(Order = 13)] public long OutputBytes { get; set; }
         [DataMember(Order = 14)] public string? AudioError { get; set; }
         [DataMember(Order = 15)] public string? SegmentErrorTail { get; set; }
-        [DataMember(Order = 16)] public string? Error { get; set; }
+        [DataMember(Order = 16)] public string? FinalizeErrorTail { get; set; }
+        [DataMember(Order = 17)] public string? Error { get; set; }
     }
 
     [DataContract]

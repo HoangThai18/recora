@@ -4,16 +4,19 @@ namespace Recora.Core.Tests.Ffmpeg
 {
     public class ProbeCommandTests
     {
+        // Layout of fftools/opt_common.c show_filters() in FFmpeg 8.1.3: " %c%c %-17s %-10s %s".
         private const string FiltersOutput =
             "Filters:\r\n" +
             "  T.. = Timeline support\r\n" +
             "  .S. = Slice threading\r\n" +
-            "  ..C = Command support\r\n" +
             "  A = Audio input/output\r\n" +
-            " ... ddagrab           |->V       Grab Windows Desktop images using Desktop Duplication API\r\n" +
-            " ..C scale_d3d11       V->V       Scale video using Direct3D11\r\n" +
-            " TSC format            V->V       Convert the input video to one of the specified pixel formats.\r\n" +
-            " ... anullsrc          |->A       Null audio source, return empty audio frames.\r\n";
+            "  V = Video input/output\r\n" +
+            "  N = Dynamic number and/or type of input/output\r\n" +
+            "  | = Source or sink filter\r\n" +
+            " .. ddagrab           |->V       Grab Windows Desktop images using Desktop Duplication API\r\n" +
+            " .. scale_d3d11       V->V       Scale video using Direct3D11\r\n" +
+            " TS format            V->V       Convert the input video to one of the specified pixel formats.\r\n" +
+            " .. anullsrc          |->A       Null audio source, return empty audio frames.\r\n";
 
         private const string EncodersOutput =
             "Encoders:\r\n" +
