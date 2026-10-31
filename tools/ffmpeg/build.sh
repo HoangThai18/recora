@@ -28,6 +28,9 @@ mkdir -p "$src"
 tar -xf "$work/$tarball" -C "$src" --strip-components=1
 cd "$src"
 
+echo "pkg-config vpl: $(pkg-config --static --libs vpl 2>&1 || true)"
+echo "pkg-config x264: $(pkg-config --static --libs x264 2>&1 || true)"
+
 # --disable-autodetect keeps the binary free of whatever the build machine happens to have (zlib, iconv...);
 # every library and hardware API is then opted in explicitly. Option order matters to configure.
 # shellcheck disable=SC2086
@@ -36,6 +39,7 @@ cd "$src"
     --extra-version=recora \
     --pkg-config-flags=--static \
     --extra-ldflags=-static \
+    --extra-libs="-lstdc++" \
     --disable-debug --disable-doc --disable-ffplay --disable-network \
     --disable-autodetect \
     --enable-gpl --enable-libx264 --enable-libvpl \
@@ -50,7 +54,13 @@ cd "$src"
     --enable-parser="$(join $PARSERS)" \
     --enable-protocol="$(join $PROTOCOLS)" \
     --enable-bsfs \
-    2>&1 | tee "$out/configure.log"
+    > "$out/configure.log" 2>&1 || {
+        cat "$out/configure.log"
+        echo "---- tail of ffbuild/config.log" >&2
+        tail -n 120 ffbuild/config.log >&2
+        exit 1
+    }
+cat "$out/configure.log"
 
 # gfxcapture needs WinRT headers that not every mingw-w64 has; the app checks `ffmpeg -filters` at runtime.
 if grep -q '^#define CONFIG_GFXCAPTURE_FILTER 1' config_components.h; then
