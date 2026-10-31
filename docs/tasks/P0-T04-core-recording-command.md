@@ -3,7 +3,7 @@ id: P0-T04
 title: Core - lệnh ghi một đoạn, lệnh hoàn tất và đọc tiến độ FFmpeg
 phase: P0
 lane: DESKTOP
-status: review
+status: done
 deps: [P0-T03]
 touches: [src/Recora.Core/Ffmpeg/RecordingCommand.cs, src/Recora.Core/Ffmpeg/FinalizeCommand.cs, src/Recora.Core/Ffmpeg/ProbeCommand.cs, src/Recora.Core/Ffmpeg/ProgressParser.cs, src/Recora.Core/Recording/RecordingPlan.cs, tests/Recora.Core.Tests/Ffmpeg/RecordingCommandTests.cs, tests/Recora.Core.Tests/Ffmpeg/FinalizeCommandTests.cs, tests/Recora.Core.Tests/Ffmpeg/ProgressParserTests.cs, tests/Recora.Core.Tests/Ffmpeg/ProbeCommandTests.cs, src/Recora.Core/Capture/CaptureSource.cs]
 size: M
@@ -44,3 +44,5 @@ dotnet test tests/Recora.Core.Tests
 ## Notes / decisions
 - 2026-10-31: đọc tiến độ qua `-progress pipe:1` (dòng `key=value`) thay cho dòng stats trên stderr: FFmpeg vẽ lại dòng stats bằng `\r` nên khó đọc chắc chắn.
 - 2026-10-31: thêm `src/Recora.Core/Capture/CaptureSource.cs` vào touches: `WindowSource.Area` phải cắt theo màn hình, nếu không ddagrab nhận vùng tràn ra ngoài output.
+
+Review: [docs/reviews/P0-T04.md](../reviews/P0-T04.md) · PASS · merge vào phase/P0
