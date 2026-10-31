@@ -59,7 +59,10 @@ namespace Recora.App.UI
                     SystemAudio: true,
                     Microphone: true));
                 form.Disk.SetUsage(@"Ổ D: còn 214,6 GB", 0.58f, low: false);
-                form.Status.RightText = settings.OutputFolder;
+                // Pictures go on the download page: show a user's folder, not the CI runner's path.
+                const string shownFolder = @"C:\Users\Ban\Videos\Recora";
+                form.Status.RightText = shownFolder;
+                form.PageOf<GeneralPage>(PageKind.General)?.ShowFolder(shownFolder);
 
                 // The real desktop of the machine, scaled like the app does it.
                 var screen = Screen.PrimaryScreen.Bounds;
