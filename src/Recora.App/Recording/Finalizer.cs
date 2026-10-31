@@ -100,8 +100,16 @@ namespace Recora.App.Recording
                 TryDeleteFile(Path.Combine(folder, SessionManifest.FileName));
             }
 
-            // Segments and scratch files go first; the manifest and the marker last, so a folder that can't be
-            // emptied (a segment held open by antivirus) still says "saved" and the next scan only deletes it.
+            CleanSavedFolder(folder);
+            return output;
+        }
+
+        /// <summary>
+        /// Segments and scratch files go first; the manifest and the marker last, so a folder that can't be emptied
+        /// (a segment held open by antivirus) still says "saved" and the next scan only deletes it again.
+        /// </summary>
+        public static void CleanSavedFolder(string folder)
+        {
             foreach (var file in Directory.GetFiles(folder))
             {
                 var name = Path.GetFileName(file);
@@ -128,8 +136,6 @@ namespace Recora.App.Recording
             {
                 Log.Warn("session folder kept for the next start to clean: " + folder);
             }
-
-            return output;
         }
     }
 }

@@ -54,7 +54,14 @@ namespace Recora.App.Recording
 
             foreach (var folder in plan.Discard)
             {
-                TryDelete(folder);
+                if (File.Exists(Path.Combine(folder, SessionManifest.SavedMarker)))
+                {
+                    TryClean(folder);
+                }
+                else
+                {
+                    TryDelete(folder);
+                }
             }
 
             foreach (var (session, segments) in plan.Finish)
@@ -83,6 +90,18 @@ namespace Recora.App.Recording
         }
 
         public static RecoveryResult RecoverAll(string ffmpeg, string outputFolder) => Finish(ffmpeg, Scan(outputFolder));
+
+        private static void TryClean(string folder)
+        {
+            try
+            {
+                Finalizer.CleanSavedFolder(folder);
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            {
+                Log.Warn("could not clean " + folder + ": " + error.Message);
+            }
+        }
 
         private static void TryDelete(string folder)
         {

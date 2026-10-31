@@ -138,7 +138,8 @@ namespace Recora.App.Recording
                 return null;
             }
 
-            var reason = process.HasExited ? LastLine(process.ErrorTail) : (audioOnly ? "no audio" : "no frame") + " within " + firstFrameTimeout.TotalSeconds + " s";
+            // The last few stderr lines: FFmpeg ends with "Conversion failed!", the cause is a line or two above.
+            var reason = process.HasExited ? LastLines(process.ErrorTail, 4) : (audioOnly ? "no audio" : "no frame") + " within " + firstFrameTimeout.TotalSeconds + " s";
             process.Kill();
             process.WaitForExit(TimeSpan.FromSeconds(5));
             process.Dispose();
@@ -204,8 +205,11 @@ namespace Recora.App.Recording
             }
         }
 
-        private static string LastLine(string text) =>
-            text.Split('\n').Select(l => l.Trim()).LastOrDefault(l => l.Length > 0) ?? "ffmpeg exited";
+        private static string LastLines(string text, int count)
+        {
+            var lines = text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+            return lines.Count == 0 ? "ffmpeg exited" : string.Join(" | ", lines.Skip(Math.Max(0, lines.Count - count)));
+        }
 
         private static void TryDelete(string path)
         {
