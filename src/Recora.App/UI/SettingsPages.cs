@@ -85,12 +85,13 @@ namespace Recora.App.UI
 
             string Mark(EncoderKind kind, string name) => available(kind) ? name : name + " (không có)";
             Row(encoding, "Bộ mã hoá", Choice(settings.Encoder, v => settings.Encoder = v,
-                (EncoderChoice.Auto, autoEncoder == null ? "Tự động" : "Tự động: " + autoEncoder),
+                (EncoderChoice.Auto, "Tự động"),
                 (EncoderChoice.Nvenc, Mark(EncoderKind.Nvenc, "NVIDIA")),
                 (EncoderChoice.Amf, Mark(EncoderKind.Amf, "AMD")),
                 (EncoderChoice.Qsv, Mark(EncoderKind.Qsv, "Intel")),
                 (EncoderChoice.X264, "CPU")),
-                "Ghi bằng GPU không làm tụt FPS game. CPU (x264) chỉ nên dùng khi máy không có GPU nào ghi được.");
+                (autoEncoder == null ? string.Empty : "Tự động trên máy này: " + autoEncoder + ". ")
+                + "Ghi bằng GPU không làm tụt FPS game. CPU (x264) chỉ nên dùng khi máy không có GPU nào ghi được.");
             Row(encoding, "Định dạng file", Choice(settings.Container, v => settings.Container = v,
                 (ContainerFormat.Mp4, "MP4"), (ContainerFormat.Mkv, "MKV")),
                 "MP4 mở được trên điện thoại, mạng xã hội, trình chỉnh sửa video.");
@@ -127,7 +128,7 @@ namespace Recora.App.UI
             var combo = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                FlatStyle = FlatStyle.Flat,
+                FlatStyle = FlatStyle.System,
                 Font = Theme.Body,
                 Width = 420,
                 DisplayMember = nameof(AudioDeviceOption.Name),

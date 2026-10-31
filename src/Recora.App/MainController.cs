@@ -280,8 +280,6 @@ namespace Recora.App
 
         private void RefreshHome()
         {
-            var hotkeys = new[] { _settings.HotkeyRecord, _settings.HotkeyPause, _settings.HotkeyScreenshot };
-            _form.Home.SetHints(hotkeys[0], hotkeys[1], hotkeys[2]);
             _form.Record.Shortcut = _settings.HotkeyRecord;
             _form.Status.RightText = OutputFolder;
 

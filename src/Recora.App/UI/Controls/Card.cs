@@ -37,6 +37,8 @@ namespace Recora.App.UI.Controls
 
         public void FitHeight()
         {
+            // The padding depends on DPI; set it here too, so a card measured before its handle exists isn't short.
+            ApplyPadding();
             var content = Body.GetPreferredSize(new System.Drawing.Size(Width - Padding.Horizontal, 0));
             Height = content.Height + Padding.Vertical;
         }
@@ -44,13 +46,25 @@ namespace Recora.App.UI.Controls
         protected override void OnHandleCreated(System.EventArgs e)
         {
             base.OnHandleCreated(e);
-            ApplyPadding();
+            Refit();
         }
 
         protected override void OnDpiChangedAfterParent(System.EventArgs e)
         {
             base.OnDpiChangedAfterParent(e);
-            ApplyPadding();
+            Refit();
+        }
+
+        private void Refit()
+        {
+            if (AutoHeight)
+            {
+                FitHeight();
+            }
+            else
+            {
+                ApplyPadding();
+            }
         }
 
         private void ApplyPadding()

@@ -136,7 +136,7 @@ namespace Recora.App.UI
             _list.Columns[1].Width = (int)(90 * dpi);
             _list.Columns[2].Width = (int)(90 * dpi);
             _list.Columns[3].Width = (int)(130 * dpi);
-            _list.Columns[0].Width = Math.Max((int)(160 * dpi), width - fixedColumns - SystemInformation.VerticalScrollBarWidth - 4);
+            _list.Columns[0].Width = Math.Max((int)(160 * dpi), width - fixedColumns - SystemInformation.VerticalScrollBarWidth - (int)(10 * dpi));
         }
 
         private void UpdateButtons()

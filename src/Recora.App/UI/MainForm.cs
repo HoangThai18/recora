@@ -39,7 +39,7 @@ namespace Recora.App.UI
             Text = "Recora";
             Font = Theme.Body;
             BackColor = Theme.Background;
-            ClientSize = new Size(940, 640);
+            ClientSize = new Size(960, 680);
             MinimumSize = new Size(820, 560);
             StartPosition = FormStartPosition.CenterScreen;
             Icon = AppIcon.Large;

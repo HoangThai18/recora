@@ -51,6 +51,15 @@ namespace Recora.App.UI
 
             Controls.Add(Stack);
             Resize += (_, _) => FitCards();
+
+            // Pages are built hidden; text and DPI are final only once shown.
+            VisibleChanged += (_, _) =>
+            {
+                if (Visible)
+                {
+                    FitCards();
+                }
+            };
         }
 
         protected FlowLayoutPanel Stack { get; }
@@ -112,7 +121,6 @@ namespace Recora.App.UI
         private readonly Label _mode;
         private readonly Label _source;
         private readonly Label _encoder;
-        private readonly FlowLayoutPanel _hints;
         private readonly FlowLayoutPanel _pills;
         private readonly SourceRow _row;
         private readonly Card _sourceCard;
@@ -135,11 +143,9 @@ namespace Recora.App.UI
                     MonitorSelected?.Invoke(this, device);
                 }
             };
-            _hints = new FlowLayoutPanel { AutoSize = true, WrapContents = true, BackColor = Theme.Surface, Margin = Padding.Empty };
-            SetHints("F12", "Shift+F12", "F11");
 
             var details = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
-            details.Controls.AddRange(new Control[] { _mode, _source, _encoder, Caption("Màn hình", Theme.Small, Theme.Muted, 4), Monitors, _hints });
+            details.Controls.AddRange(new Control[] { _mode, _source, _encoder, Caption("Màn hình", Theme.Small, Theme.Muted, 4), Monitors });
             _row = new SourceRow(Preview, details) { Margin = Padding.Empty };
             source.Body.Controls.Add(_row);
             source.Body.SizeChanged += (_, _) => FitRow(source);
@@ -206,14 +212,6 @@ namespace Recora.App.UI
             _filling = false;
         }
 
-        public void SetHints(string record, string pause, string screenshot)
-        {
-            _hints.Controls.Clear();
-            _hints.Controls.Add(Hint(record, "Ghi / Dừng"));
-            _hints.Controls.Add(Hint(pause, "Tạm dừng"));
-            _hints.Controls.Add(Hint(screenshot, "Chụp ảnh"));
-        }
-
         private static FlowLayoutPanel Row(Control toggle, Control meter, int bottom)
         {
             var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = new Padding(0, 0, 0, bottom) };
@@ -229,12 +227,6 @@ namespace Recora.App.UI
             {
                 card.FitHeight();
             }
-        }
-
-        private static HotkeyHint Hint(string keys, string action)
-        {
-            // AutoSize: measured after DPI scaling; a size computed here would be scaled a second time.
-            return new HotkeyHint(keys, action) { Margin = new Padding(0, 0, 18, 0), AutoSize = true };
         }
 
         /// <summary>Preview on the left at 16:9, details on the right; stacks when the window is narrow.</summary>
