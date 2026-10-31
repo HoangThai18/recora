@@ -24,6 +24,7 @@ namespace Recora.App.UI
         private readonly Bitmap _frame = new Bitmap(WebcamPreviewCommand.Width, WebcamPreviewCommand.Height, PixelFormat.Format32bppArgb);
         private readonly object _gate = new object();
         private volatile bool _closing;
+        private bool _disposed;
         private Point _dragFrom;
 
         public WebcamOverlay(string ffmpeg, string device, Rectangle screen)
@@ -37,10 +38,12 @@ namespace Recora.App.UI
             BackColor = Theme.FromHex(0x13263D);
             Cursor = Cursors.SizeAll;
 
+            // A quarter of the recorded area's width at most, bottom-right with a margin.
             var scale = DeviceDpi / 96f;
-            var size = new Size((int)(WebcamPreviewCommand.Width * scale), (int)(WebcamPreviewCommand.Height * scale));
-            var margin = (int)(24 * scale);
-            Bounds = new Rectangle(screen.Right - size.Width - margin, screen.Bottom - size.Height - margin - (int)(48 * scale), size.Width, size.Height);
+            var width = Math.Min((int)(WebcamPreviewCommand.Width * scale), Math.Max(80, screen.Width / 4));
+            var size = new Size(width, width * WebcamPreviewCommand.Height / WebcamPreviewCommand.Width);
+            var margin = Math.Min((int)(24 * scale), screen.Width / 20);
+            Bounds = new Rectangle(screen.Right - size.Width - margin, screen.Bottom - size.Height - margin, size.Width, size.Height);
             using (var path = Theme.RoundedRect(new RectangleF(0, 0, size.Width, size.Height), 16 * scale))
             {
                 Region = new Region(path);
@@ -90,7 +93,10 @@ namespace Recora.App.UI
             e.Graphics.InterpolationMode = InterpolationMode.HighQualityBilinear;
             lock (_gate)
             {
-                e.Graphics.DrawImage(_frame, ClientRectangle);
+                if (!_disposed)
+                {
+                    e.Graphics.DrawImage(_frame, ClientRectangle);
+                }
             }
         }
 
@@ -115,8 +121,27 @@ namespace Recora.App.UI
         {
             if (disposing)
             {
+                _closing = true;
+                try
+                {
+                    if (!_ffmpeg.HasExited)
+                    {
+                        _ffmpeg.Kill();
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                }
+
+                // The reader writes into the bitmap under the gate: stop it before freeing what it writes to.
+                _reader.Join(TimeSpan.FromSeconds(2));
+                lock (_gate)
+                {
+                    _disposed = true;
+                    _frame.Dispose();
+                }
+
                 _ffmpeg.Dispose();
-                _frame.Dispose();
             }
 
             base.Dispose(disposing);
@@ -144,6 +169,11 @@ namespace Recora.App.UI
 
                     lock (_gate)
                     {
+                        if (_disposed)
+                        {
+                            return;
+                        }
+
                         var bits = _frame.LockBits(new Rectangle(0, 0, _frame.Width, _frame.Height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
                         try
                         {
@@ -167,7 +197,7 @@ namespace Recora.App.UI
                     }
                 }
             }
-            catch (Exception error) when (error is IOException || error is ObjectDisposedException || error is InvalidOperationException)
+            catch (Exception error) when (error is IOException || error is ObjectDisposedException || error is InvalidOperationException || error is ArgumentException)
             {
                 Log.Warn("webcam overlay stopped: " + error.Message);
             }

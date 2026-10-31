@@ -22,7 +22,14 @@ $v = @($region.streams | Where-Object codec_type -eq 'video')[0]
 Write-Host ("region: {0}x{1} {2}, {3} s" -f $v.width, $v.height, $v.codec_name, $region.format.duration)
 if ($v.width -ne 640 -or $v.height -ne 360) { throw "region recorded at $($v.width)x$($v.height), expected 640x360" }
 
-foreach ($key in @('audio_m4a', 'audio_wav')) {
+$window = Probe $info.window
+$w = @($window.streams | Where-Object codec_type -eq 'video')[0]
+Write-Host ("window: {0}x{1} {2}, {3} s" -f $w.width, $w.height, $w.codec_name, $window.format.duration)
+if ($w.width -ne 800 -or $w.height -ne 600) { throw "window recorded at $($w.width)x$($w.height), expected 800x600" }
+
+$audioKeys = @('audio_m4a', 'audio_wav')
+if ($info.audio_mp3) { $audioKeys += 'audio_mp3' } else { Write-Host "audio_mp3: mp3_mf (Media Foundation) is not available on this runner; see the app log" }
+foreach ($key in $audioKeys) {
     $file = $info[$key]
     $p = Probe $file
     $types = @($p.streams | ForEach-Object codec_type) -join ','

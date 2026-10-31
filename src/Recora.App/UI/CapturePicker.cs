@@ -102,13 +102,18 @@ namespace Recora.App.UI
 
         public event EventHandler<PickResult?>? Done;
 
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+
+            // The picker itself must never be recorded or picked.
+            WindowExclusion.Apply(this);
+        }
+
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
             Bounds = _screen.Bounds;
-
-            // The picker itself must never be recorded or picked.
-            NativeMethods.SetWindowDisplayAffinity(Handle, NativeMethods.WdaExcludeFromCapture);
         }
 
         protected override void Dispose(bool disposing)

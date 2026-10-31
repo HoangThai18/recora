@@ -50,10 +50,10 @@ namespace Recora.App.UI
             Invalidate();
         }
 
-        protected override void OnShown(EventArgs e)
+        protected override void OnHandleCreated(EventArgs e)
         {
-            base.OnShown(e);
-            NativeMethods.SetWindowDisplayAffinity(Handle, NativeMethods.WdaExcludeFromCapture);
+            base.OnHandleCreated(e);
+            WindowExclusion.Apply(this);
         }
 
         protected override void OnPaint(PaintEventArgs e)

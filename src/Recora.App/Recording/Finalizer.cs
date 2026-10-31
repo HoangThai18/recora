@@ -100,13 +100,33 @@ namespace Recora.App.Recording
                 TryDeleteFile(Path.Combine(folder, SessionManifest.FileName));
             }
 
-            try
+            // Segments and scratch files go first; the manifest and the marker last, so a folder that can't be
+            // emptied (a segment held open by antivirus) still says "saved" and the next scan only deletes it.
+            foreach (var file in Directory.GetFiles(folder))
             {
-                Directory.Delete(folder, recursive: true);
+                var name = Path.GetFileName(file);
+                if (name != SessionManifest.FileName && name != SessionManifest.SavedMarker)
+                {
+                    TryDeleteFile(file);
+                }
             }
-            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+
+            if (Directory.GetFiles(folder).Length <= 2)
             {
-                Log.Warn("session folder left behind: " + error.Message);
+                TryDeleteFile(Path.Combine(folder, SessionManifest.FileName));
+                TryDeleteFile(Path.Combine(folder, SessionManifest.SavedMarker));
+                try
+                {
+                    Directory.Delete(folder, recursive: true);
+                }
+                catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+                {
+                    Log.Warn("session folder left behind: " + error.Message);
+                }
+            }
+            else
+            {
+                Log.Warn("session folder kept for the next start to clean: " + folder);
             }
 
             return output;

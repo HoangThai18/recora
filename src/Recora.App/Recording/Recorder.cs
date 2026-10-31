@@ -236,7 +236,13 @@ namespace Recora.App.Recording
                         break;
                     }
 
-                    _memory.Failed(encoder);
+                    // Only failures that name the encoder count against it (a bad option or a broken input would
+                    // otherwise mark every encoder as failed and push recordings onto the CPU).
+                    if (outcome.IndexOf(encoder.FfmpegName, StringComparison.OrdinalIgnoreCase) >= 0
+                        || outcome.IndexOf("encoder", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        _memory.Failed(encoder);
+                    }
                 }
             }
 

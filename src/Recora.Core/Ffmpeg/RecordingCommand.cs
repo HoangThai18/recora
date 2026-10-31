@@ -112,12 +112,6 @@ namespace Recora.Core.Ffmpeg
                         "-thread_queue_size", "512", "-probesize", "32", "-analyzeduration", "0",
                         "-f", "gdigrab", "-framerate", fps, "-draw_mouse", cursor,
                     };
-                    if (plan.Source is FollowMouseSource)
-                    {
-                        // gdigrab moves its window every frame to keep the pointer in the middle.
-                        gdi.AddRange(new[] { "-follow_mouse", "centered" });
-                    }
-
                     gdi.AddRange(new[]
                     {
                         "-offset_x", Invariant($"{area.X}"), "-offset_y", Invariant($"{area.Y}"),

@@ -170,10 +170,8 @@ namespace Recora.App.UI
                 Margin = new Padding(0, 0, 0, 12),
             };
 
-            FollowMouse = new ToggleSwitch("Vùng 1280×720 đi theo con trỏ chuột", false) { Size = new Size(330, 30), Margin = new Padding(0, 0, 0, 12) };
-
             var details = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
-            details.Controls.AddRange(new Control[] { _mode, _source, _encoder, _pickerLabel, Monitors, Devices, AudioFormats, FollowMouse });
+            details.Controls.AddRange(new Control[] { _mode, _source, _encoder, _pickerLabel, Monitors, Devices, AudioFormats });
             _row = new SourceRow(Preview, details) { Margin = Padding.Empty };
             source.Body.Controls.Add(_row);
             source.Body.SizeChanged += (_, _) => FitRow(source);
@@ -204,13 +202,10 @@ namespace Recora.App.UI
             Monitors,
             Devices,
             AudioFormats,
-            RegionOptions,
             None,
         }
 
         public ComboBox Devices { get; }
-
-        public ToggleSwitch FollowMouse { get; }
 
         public Segmented<Core.Ffmpeg.AudioFormat> AudioFormats { get; }
 
@@ -218,10 +213,9 @@ namespace Recora.App.UI
         public void ShowPicker(PickerKind kind)
         {
             Monitors.Visible = kind == PickerKind.Monitors;
-            FollowMouse.Visible = kind == PickerKind.RegionOptions;
             Devices.Visible = kind == PickerKind.Devices;
             AudioFormats.Visible = kind == PickerKind.AudioFormats;
-            _pickerLabel.Visible = kind != PickerKind.None && kind != PickerKind.RegionOptions;
+            _pickerLabel.Visible = kind != PickerKind.None;
             _pickerLabel.Text = kind switch
             {
                 PickerKind.Devices => "Thiết bị",
