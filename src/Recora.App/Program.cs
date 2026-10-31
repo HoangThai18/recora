@@ -26,9 +26,10 @@ namespace Recora.App
             var recover = OptionValue(args, "--recover");
             var roundtrip = OptionValue(args, "--settings-roundtrip");
             var exclusion = OptionValue(args, "--selftest-exclusion");
+            var modes = OptionValue(args, "--selftest-modes");
             var screenshot = OptionValue(args, "--ui-screenshot");
 
-            if (selfTest != null || crash != null || recover != null || roundtrip != null || exclusion != null || screenshot != null)
+            if (selfTest != null || crash != null || recover != null || roundtrip != null || exclusion != null || modes != null || screenshot != null)
             {
                 // A GUI-subsystem exe has no console; borrow the caller's so CI logs show progress.
                 NativeMethods.AttachConsole(NativeMethods.AttachParentProcess);
@@ -52,6 +53,11 @@ namespace Recora.App
             if (roundtrip != null)
             {
                 return SelfTest.SettingsRoundtrip(roundtrip);
+            }
+
+            if (modes != null)
+            {
+                return SelfTest.Modes(modes);
             }
 
             if (exclusion != null)

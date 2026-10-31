@@ -57,4 +57,36 @@ namespace Recora.Core.Capture
 
         public override PixelRect Area => Bounds.Intersect(Target.Bounds);
     }
+
+    /// <summary>
+    /// A webcam or capture card through DirectShow. <see cref="Size"/> is what the device usually sends (used to cap
+    /// the bitrate); the frames themselves are evened and scaled by the filter whatever size really arrives.
+    /// <see cref="Target"/> only decides which GPU encodes: the primary monitor's.
+    /// </summary>
+    public sealed record DeviceSource(string DeviceName, PixelRect Size, MonitorTarget Target) : CaptureSource
+    {
+        public override MonitorTarget Monitor => Target;
+
+        public override PixelRect Area => Size;
+    }
+
+    /// <summary>
+    /// A fixed-size frame that follows the mouse pointer (tutorials on a big screen). Only GDI capture can move its
+    /// window every frame, so this one always records on the CPU side of capture; the encoder can still be the GPU.
+    /// </summary>
+    public sealed record FollowMouseSource(MonitorTarget Target, int Width, int Height) : CaptureSource
+    {
+        public override MonitorTarget Monitor => Target;
+
+        /// <summary>Starts centred on the monitor; FFmpeg recentres it on the pointer from the first frame.</summary>
+        public override PixelRect Area
+        {
+            get
+            {
+                var width = System.Math.Min(Width, Target.Bounds.Width);
+                var height = System.Math.Min(Height, Target.Bounds.Height);
+                return new PixelRect(Target.Bounds.X + (Target.Bounds.Width - width) / 2, Target.Bounds.Y + (Target.Bounds.Height - height) / 2, width, height);
+            }
+        }
+    }
 }

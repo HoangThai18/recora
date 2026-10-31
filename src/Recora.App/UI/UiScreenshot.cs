@@ -37,6 +37,7 @@ namespace Recora.App.UI
                     new[] { new AudioDeviceOption("speakers", "Loa (Realtek High Definition Audio)") },
                     new[] { new AudioDeviceOption("mic", "Micro (USB Audio Device)") }));
                 form.SetPage(PageKind.Hotkeys, new HotkeysPage(settings));
+                form.SetPage(PageKind.Screenshot, new ScreenshotPage(settings));
                 form.SetPage(PageKind.General, new GeneralPage(settings, settings.OutputFolder));
                 form.SetPage(PageKind.Library, new LibraryPage(() => LibraryFiles.Scan(libraryFolder)));
                 form.SetPage(PageKind.About, new AboutPage(Program.Version, "ffmpeg version 8.1.3"));

@@ -36,6 +36,8 @@ namespace Recora.App.UI.Controls
         private string _clock = "00:00:00";
         private string _details = string.Empty;
         private bool _blink;
+        private IconKind _placeholder = IconKind.Monitor;
+        private string? _caption;
 
         public PreviewBox()
         {
@@ -53,6 +55,14 @@ namespace Recora.App.UI.Controls
                 old?.Dispose();
                 Invalidate();
             }
+        }
+
+        /// <summary>What to draw when there is no screen picture (webcam and sound-only modes).</summary>
+        public void SetPlaceholder(IconKind icon, string? caption)
+        {
+            _placeholder = icon;
+            _caption = caption;
+            Invalidate();
         }
 
         public void ShowRecording(bool recording, bool paused, string clock, string details)
@@ -107,8 +117,14 @@ namespace Recora.App.UI.Controls
                         g.FillRectangle(brush, box);
                     }
 
-                    var icon = 34 * Dpi;
-                    Icons.Draw(g, IconKind.Monitor, new RectangleF(box.X + (box.Width - icon) / 2, box.Y + (box.Height - icon) / 2, icon, icon), Theme.Accent);
+                    var icon = 40 * Dpi;
+                    var top = box.Y + (box.Height - icon) / 2 - (_caption == null ? 0 : 12 * Dpi);
+                    Icons.Draw(g, _placeholder, new RectangleF(box.X + (box.Width - icon) / 2, top, icon, icon), Theme.Accent);
+                    if (_caption != null)
+                    {
+                        TextRenderer.DrawText(g, _caption, Theme.Small, new Rectangle((int)box.X, (int)(top + icon + 8 * Dpi), (int)box.Width, (int)(20 * Dpi)), Theme.Muted,
+                            TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+                    }
                 }
 
                 g.ResetClip();

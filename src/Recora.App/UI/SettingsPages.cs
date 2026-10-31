@@ -214,6 +214,23 @@ namespace Recora.App.UI
         }
     }
 
+    internal sealed class ScreenshotPage : SettingsPage
+    {
+        public ScreenshotPage(AppSettings settings)
+            : base("Ảnh chụp", settings)
+        {
+            var card = AddCard("chụp ảnh màn hình");
+            Row(card, "Định dạng", Choice(settings.ScreenshotFormat, v => settings.ScreenshotFormat = v,
+                (ScreenshotFormat.Png, "PNG"), (ScreenshotFormat.Jpg, "JPG")),
+                "PNG giữ nét từng điểm ảnh, hợp chụp chữ và giao diện; JPG nhẹ hơn, hợp ảnh game và phim.");
+            card.Body.Controls.Add(Toggle("Chép ảnh vào clipboard để dán ngay", settings.ScreenshotToClipboard, v => settings.ScreenshotToClipboard = v));
+            card.Body.Controls.Add(Toggle("Phát tiếng khi chụp", settings.ScreenshotSound, v => settings.ScreenshotSound = v));
+            card.Body.Controls.Add(Caption(
+                "Chụp đúng thứ chế độ hiện tại sẽ ghi: cả màn hình, một vùng (kéo chuột chọn) hay một cửa sổ (bấm vào nó). Ảnh lưu cạnh video và hiện trong Thư viện.",
+                Theme.Small, Theme.Muted));
+        }
+    }
+
     internal sealed class GeneralPage : SettingsPage
     {
         private readonly Label _folder;
@@ -226,7 +243,7 @@ namespace Recora.App.UI
             folder.Body.Controls.Add(_folder);
             var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
             ChangeFolder = new FlatButton("Đổi thư mục…") { Size = new Size(150, 34), Margin = new Padding(0, 0, 10, 0) };
-            OpenFolder = new FlatButton("Mở thư mục") { Size = new Size(130, 34) };
+            OpenFolder = new FlatButton("Mở thư mục") { Size = new Size(130, 34), Margin = Padding.Empty };
             buttons.Controls.Add(ChangeFolder);
             buttons.Controls.Add(OpenFolder);
             folder.Body.Controls.Add(buttons);
@@ -235,6 +252,15 @@ namespace Recora.App.UI
             behavior.Body.Controls.Add(Toggle("Thu nhỏ xuống khay khi đóng cửa sổ", settings.MinimizeToTrayOnClose, v => settings.MinimizeToTrayOnClose = v));
             behavior.Body.Controls.Add(Toggle("Mở Recora cùng Windows", settings.StartWithWindows, v => settings.StartWithWindows = v));
             behavior.Body.Controls.Add(Toggle("Ẩn cửa sổ Recora khỏi video", settings.HideRecoraFromVideo, v => settings.HideRecoraFromVideo = v));
+
+            var recording = AddCard("khi ghi");
+            recording.Body.Controls.Add(Toggle("Đếm ngược 3 giây trước khi ghi", settings.Countdown, v => settings.Countdown = v));
+            recording.Body.Controls.Add(Toggle("Hiện vòng tròn chỗ bấm chuột", settings.ClickHighlight, v => settings.ClickHighlight = v));
+            recording.Body.Controls.Add(Toggle("Webcam nổi ở góc màn hình khi ghi", settings.WebcamOverlay, v => settings.WebcamOverlay = v));
+            recording.Body.Controls.Add(Caption("Webcam nổi dùng webcam chọn ở chế độ Webcam; kéo để đổi chỗ. Vòng tròn và webcam nổi có trong video.", Theme.Small, Theme.Muted, 12));
+            Row(recording, "Tự dừng sau", Choice(settings.AutoStopMinutes, v => settings.AutoStopMinutes = v,
+                (0, "Không"), (5, "5 phút"), (10, "10 phút"), (30, "30 phút"), (60, "1 giờ"), (120, "2 giờ")),
+                "Hữu ích khi ghi một buổi học hay trận đấu rồi để máy chạy.");
         }
 
         public FlatButton ChangeFolder { get; }
