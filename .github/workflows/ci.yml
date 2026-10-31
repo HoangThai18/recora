@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ffmpeg:
+    name: FFmpeg tối giản
+    runs-on: windows-latest
+    timeout-minutes: 60
+    outputs:
+      artifact: ${{ steps.name.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Artifact name
+        id: name
+        shell: bash
+        run: echo "artifact=ffmpeg-${{ hashFiles('tools/ffmpeg/**') }}" >> "$GITHUB_OUTPUT"
+
+      # actions/cache is scoped per branch; an artifact of any earlier run with the same script hash
+      # saves the 12-minute build on every new branch.
+      - name: Reuse FFmpeg from an earlier run
+        id: reuse
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.name.outputs.artifact }}
+        run: |
+          id=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=$NAME&per_page=1" \
+            --jq '[.artifacts[] | select(.expired | not)][0].id // empty')
+          if [ -n "$id" ]; then
+            gh api "repos/${{ github.repository }}/actions/artifacts/$id/zip" > ffmpeg.zip
+            mkdir -p artifacts/ffmpeg
+            unzip -q ffmpeg.zip -d artifacts/ffmpeg
+            rm ffmpeg.zip
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            echo "Reused artifact $id"
+          fi
+
+      - name: Cache FFmpeg build
+        if: steps.reuse.outputs.hit != 'true'
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: artifacts/ffmpeg
+          key: ffmpeg-${{ hashFiles('tools/ffmpeg/**') }}
+
+      - name: Set up MSYS2 UCRT64
+        if: steps.reuse.outputs.hit != 'true' && steps.cache.outputs.cache-hit != 'true'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            make
+            diffutils
+            tar
+            xz
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-nasm
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-ffnvcodec-headers
+            mingw-w64-ucrt-x86_64-amf-headers
+            mingw-w64-ucrt-x86_64-libvpl
+            mingw-w64-ucrt-x86_64-libx264
+
+      - name: Build FFmpeg
+        if: steps.reuse.outputs.hit != 'true' && steps.cache.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: bash tools/ffmpeg/build.sh
+
+      - name: Verify FFmpeg
+        shell: bash
+        run: bash tools/ffmpeg/verify.sh artifacts/ffmpeg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name.outputs.artifact }}
+          path: artifacts/ffmpeg
+          retention-days: 30
