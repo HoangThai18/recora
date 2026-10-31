@@ -3,7 +3,7 @@ id: P0-T02
 title: Script build FFmpeg 8.1.3 tối giản và job CI có cache
 phase: P0
 lane: INFRA
-status: todo
+status: doing
 deps: []
 touches: [tools/ffmpeg/**, .github/workflows/ci.yml]
 size: M
