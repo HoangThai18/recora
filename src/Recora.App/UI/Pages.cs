@@ -97,7 +97,7 @@ namespace Recora.App.UI
         public HomePage()
             : base("Trang chủ")
         {
-            var source = AddCard("nguồn ghi", 178);
+            var source = AddCard("nguồn ghi", 170);
             _mode = Caption(string.Empty, Theme.Title, Theme.Accent, 2);
             _source = Caption(string.Empty, Theme.Body, Theme.Muted, 2);
             _encoder = Caption(string.Empty, Theme.Mono, Theme.Text, 14);

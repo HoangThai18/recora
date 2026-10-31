@@ -30,13 +30,17 @@ namespace Recora.App.UI
 
         public MainForm()
         {
+            // Sizes below are 96-DPI design units. WinForms only scales them to the monitor's DPI when the layout is
+            // resumed after AutoScaleDimensions was set, as designer code does; without this pair, 150% screens get
+            // bigger text in unscaled boxes.
+            SuspendLayout();
+            AutoScaleDimensions = new SizeF(96f / Theme.UiScale, 96f / Theme.UiScale);
+            AutoScaleMode = AutoScaleMode.Dpi;
             Text = "Recora";
             Font = Theme.Body;
             BackColor = Theme.Background;
-            AutoScaleMode = AutoScaleMode.Dpi;
-            AutoScaleDimensions = new SizeF(96f / Theme.UiScale, 96f / Theme.UiScale);
-            ClientSize = new Size(900, 580);
-            MinimumSize = new Size(800, 540);
+            ClientSize = new Size(940, 640);
+            MinimumSize = new Size(820, 560);
             StartPosition = FormStartPosition.CenterScreen;
             Icon = AppIcon.Large;
 
@@ -62,6 +66,9 @@ namespace Recora.App.UI
             SelectMode(CaptureModeChoice.FullScreen);
             ShowPage(PageKind.Home);
             Home.ChangeQuality.Click += (_, _) => ShowPage(PageKind.Video);
+
+            ResumeLayout(false);
+            PerformLayout();
         }
 
         public event EventHandler<CaptureModeChoice>? ModeSelected;
@@ -140,7 +147,7 @@ namespace Recora.App.UI
 
         private void AddMode(FlowLayoutPanel host, CaptureModeChoice mode, IconKind icon, string label)
         {
-            var button = new ModeButton(icon, label) { Size = new Size(84, 64), Margin = new Padding(0) };
+            var button = new ModeButton(icon, label) { Size = new Size(94, 64), Margin = new Padding(0) };
             button.Click += (_, _) =>
             {
                 SelectMode(mode);
