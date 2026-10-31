@@ -28,46 +28,57 @@ namespace Recora.App
             Log.Initialize(directory, echoToConsole: true);
             var (recorder, environment) = NewRecorder();
             var monitor = environment.MonitorFor(string.Empty);
+            var lines = new System.Text.StringBuilder();
 
-            using (var board = new SyncBoard())
-            using (var form = new MainForm())
+            // A control run first: without the flag the window must show up, or the check below proves nothing.
+            foreach (var excluded in new[] { false, true })
             {
-                board.Show();
-                var screen = Screen.PrimaryScreen.Bounds;
-                form.StartPosition = FormStartPosition.Manual;
-                form.Location = new Point(screen.X + (screen.Width - form.Width) / 2, screen.Y + (screen.Height - form.Height) / 2);
-                form.TopMost = true;
-                form.Show();
-                var excluded = NativeMethods.SetWindowDisplayAffinity(form.Handle, NativeMethods.WdaExcludeFromCapture);
-                Log.Info($"exclusion: window {form.Bounds} on screen {screen}, affinity set = {excluded}");
-                PumpFor(TimeSpan.FromMilliseconds(500));
-
-                var request = new RecordingRequest(
-                    new MonitorSource(monitor.Target), VideoCodec.H264, null, QualityPreset.Balanced, 30, OutputScale.Original,
-                    DrawCursor: false, ContainerFormat.Mp4, Path.Combine(directory, "video"), new AudioTrackSpec[0]);
-
-                var run = Task.Run(async () =>
+                var name = excluded ? "excluded" : "control";
+                using (var board = new SyncBoard())
+                using (var form = new MainForm())
                 {
-                    await recorder.StartAsync(request).ConfigureAwait(false);
-                    Thread.Sleep(1500);
-                    return await recorder.StopAsync().ConfigureAwait(false);
-                });
+                    board.Show();
+                    var screen = Screen.PrimaryScreen.Bounds;
+                    form.StartPosition = FormStartPosition.Manual;
+                    form.Location = new Point(screen.X + (screen.Width - form.Width) / 2, screen.Y + (screen.Height - form.Height) / 2);
+                    form.TopMost = true;
+                    form.Show();
+                    var set = NativeMethods.SetWindowDisplayAffinity(form.Handle, excluded ? NativeMethods.WdaExcludeFromCapture : NativeMethods.WdaNone);
+                    Log.Info($"exclusion {name}: window {form.Bounds} on screen {screen}, affinity call ok = {set}");
+                    PumpFor(TimeSpan.FromMilliseconds(500));
 
-                // The windows must keep painting while the recorder works on the thread pool.
-                while (!run.IsCompleted)
-                {
-                    Application.DoEvents();
-                    Thread.Sleep(10);
+                    var request = new RecordingRequest(
+                        new MonitorSource(monitor.Target), VideoCodec.H264, null, QualityPreset.Balanced, 30, OutputScale.Original,
+                        DrawCursor: false, ContainerFormat.Mp4, Path.Combine(directory, name), new AudioTrackSpec[0]);
+
+                    var run = Task.Run(async () =>
+                    {
+                        await recorder.StartAsync(request).ConfigureAwait(false);
+                        Thread.Sleep(1500);
+                        return await recorder.StopAsync().ConfigureAwait(false);
+                    });
+
+                    // The windows must keep painting while the recorder works on the thread pool.
+                    while (!run.IsCompleted)
+                    {
+                        Application.DoEvents();
+                        Thread.Sleep(10);
+                    }
+
+                    var saved = run.GetAwaiter().GetResult();
+                    var frame = form.Bounds;
+                    lines.Append($"{name}.output={saved?.Path}\n");
+                    lines.Append($"window={frame.X - screen.X},{frame.Y - screen.Y},{frame.Width},{frame.Height}\n");
+                    if (saved == null || (excluded && !set))
+                    {
+                        File.WriteAllText(Path.Combine(directory, "exclusion.txt"), lines.ToString());
+                        return 1;
+                    }
                 }
-
-                var saved = run.GetAwaiter().GetResult();
-                var frame = form.Bounds;
-                File.WriteAllText(
-                    Path.Combine(directory, "exclusion.txt"),
-                    $"output={saved?.Path}\nexcluded={excluded}\nwindow={frame.X - screen.X},{frame.Y - screen.Y},{frame.Width},{frame.Height}\nscreen={screen.Width},{screen.Height}\n");
-                Console.WriteLine(saved == null ? "exclusion: nothing recorded" : "exclusion: recorded " + saved.Path);
-                return saved != null && excluded ? 0 : 1;
             }
+
+            File.WriteAllText(Path.Combine(directory, "exclusion.txt"), lines.ToString());
+            return 0;
         }
 
         private static void PumpFor(TimeSpan duration)
