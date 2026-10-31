@@ -3,7 +3,7 @@ id: P0-T01
 title: Dựng solution Core, App, Tests build được trên Mac
 phase: P0
 lane: INFRA
-status: todo
+status: doing
 deps: []
 touches: [Recora.sln, Directory.Build.props, global.json, src/Recora.Core/Recora.Core.csproj, src/Recora.Core/Polyfills.cs, src/Recora.Core/RecoraException.cs, src/Recora.App/Recora.App.csproj, src/Recora.App/app.manifest, src/Recora.App/Program.cs, tests/Recora.Core.Tests/Recora.Core.Tests.csproj, tests/Recora.Core.Tests/SmokeTests.cs]
 size: S
