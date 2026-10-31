@@ -1,6 +1,8 @@
 using System;
 using System.Globalization;
 using System.Windows.Forms;
+using Recora.App.Logging;
+using Recora.App.Native;
 using Recora.App.UI;
 
 namespace Recora.App
@@ -13,7 +15,20 @@ namespace Recora.App
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            var selfTest = OptionValue(args, "--selftest");
             var screenshot = OptionValue(args, "--ui-screenshot");
+
+            if (selfTest != null || screenshot != null)
+            {
+                // A GUI-subsystem exe has no console; borrow the caller's so CI logs show progress.
+                NativeMethods.AttachConsole(NativeMethods.AttachParentProcess);
+            }
+
+            if (selfTest != null)
+            {
+                return SelfTest.Run(selfTest);
+            }
+
             if (screenshot != null)
             {
                 var scale = float.Parse(OptionValue(args, "--ui-scale") ?? "1", CultureInfo.InvariantCulture);
@@ -21,6 +36,7 @@ namespace Recora.App
                 return UiScreenshot.Run(screenshot, scale, page);
             }
 
+            Log.Initialize(Log.DefaultDirectory, echoToConsole: false);
             Application.Run(new MainForm());
             return 0;
         }
