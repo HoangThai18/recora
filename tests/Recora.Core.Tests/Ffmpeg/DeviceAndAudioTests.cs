@@ -147,3 +147,51 @@ namespace Recora.Core.Tests.Ffmpeg
         }
     }
 }
+
+namespace Recora.Core.Tests.Ffmpeg
+{
+    public class FollowMouseAndWebcamPreviewTests
+    {
+        [Fact]
+        public void FollowMouse_AlwaysUsesGdigrabThatFollowsThePointer()
+        {
+            var source = new FollowMouseSource(Monitors.Primary(), 1280, 720);
+            var plan = new RecordingPlan(source, CaptureBackendSelector.Select(source, new CaptureCapabilities(true, true)), new VideoEncoder(EncoderKind.Nvenc, VideoCodec.H264), QualityPreset.Balanced, 30, OutputScale.Original, DrawCursor: true, AudioLayout.None);
+            var input = RecordingCommand.VideoInput(plan).ToList();
+
+            Assert.Equal(CaptureBackend.Gdigrab, plan.Backend);
+            Assert.Equal("centered", input[input.IndexOf("-follow_mouse") + 1]);
+            Assert.Equal("1280x720", input[input.IndexOf("-video_size") + 1]);
+        }
+
+        [Fact]
+        public void FollowMouse_FrameNeverLargerThanItsMonitor()
+        {
+            var monitor = Monitors.Primary();
+            var area = new FollowMouseSource(monitor, 4000, 3000).Area;
+
+            Assert.Equal(monitor.Bounds.Width, area.Width);
+            Assert.Equal(monitor.Bounds.Height, area.Height);
+        }
+
+        [Fact]
+        public void PlainGdigrab_DoesNotFollowTheMouse()
+        {
+            var plan = new RecordingPlan(new MonitorSource(Monitors.Primary()), CaptureBackend.Gdigrab, new VideoEncoder(EncoderKind.X264, VideoCodec.H264), QualityPreset.Balanced, 30, OutputScale.Original, DrawCursor: true, AudioLayout.None);
+
+            Assert.DoesNotContain("-follow_mouse", RecordingCommand.VideoInput(plan));
+        }
+
+        [Fact]
+        public void WebcamPreview_WritesFixedSizeBgraFramesToStdout()
+        {
+            var args = WebcamPreviewCommand.Build("HD Pro Webcam C920", mirror: true).Items.ToList();
+
+            Assert.Equal("video=HD Pro Webcam C920", args[args.IndexOf("-i") + 1]);
+            Assert.StartsWith("hflip,scale=320:240", args[args.IndexOf("-vf") + 1]);
+            Assert.Equal("bgra", args[args.IndexOf("-pix_fmt") + 1]);
+            Assert.Equal("pipe:1", args[^1]);
+            Assert.Equal(320 * 240 * 4, WebcamPreviewCommand.FrameBytes);
+        }
+    }
+}

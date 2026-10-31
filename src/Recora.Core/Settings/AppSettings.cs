@@ -106,6 +106,15 @@ namespace Recora.Core.Settings
 
         [DataMember(Name = "screenshotSound", Order = 32)] public bool ScreenshotSound { get; set; } = true;
 
+        /// <summary>"Chọn vùng" without picking: a 1280×720 frame that follows the mouse.</summary>
+        [DataMember(Name = "regionFollowMouse", Order = 33)] public bool RegionFollowMouse { get; set; }
+
+        /// <summary>Show the chosen webcam in a corner while recording the screen.</summary>
+        [DataMember(Name = "webcamOverlay", Order = 34)] public bool WebcamOverlay { get; set; }
+
+        /// <summary>Draw a ring at each mouse click while recording.</summary>
+        [DataMember(Name = "clickHighlight", Order = 35)] public bool ClickHighlight { get; set; }
+
         [DataMember(Name = "audioFormat", Order = 30)]
         private string AudioFormatText { get => AudioFormat.ToString(); set => AudioFormat = Parse(value, AudioFormat.M4a); }
 

@@ -104,6 +104,9 @@ namespace Recora.Core.Tests.Settings
                 AudioFormat = AudioFormat.Mp3,
                 AutoStopMinutes = 30,
                 ScreenshotSound = false,
+                RegionFollowMouse = true,
+                WebcamOverlay = true,
+                ClickHighlight = true,
                 EncoderProbe = new EncoderProbeCache { Fingerprint = "10de:2684|8.1.3", Working = new[] { "h264_nvenc" } },
             };
 
@@ -128,6 +131,7 @@ namespace Recora.Core.Tests.Settings
             Assert.Equal(AudioFormat.Mp3, loaded.AudioFormat);
             Assert.Equal(30, loaded.AutoStopMinutes);
             Assert.False(loaded.ScreenshotSound);
+            Assert.True(loaded.RegionFollowMouse && loaded.WebcamOverlay && loaded.ClickHighlight);
             Assert.Equal(new[] { "h264_nvenc" }, loaded.EncoderProbe!.Working);
             Assert.False(File.Exists(SettingsPath + ".tmp"));
         }
