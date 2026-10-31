@@ -66,6 +66,48 @@ namespace Recora.Core.Tests.Ffmpeg
             Assert.True(input.IndexOf("-probesize") < input.IndexOf("-i"));
         }
 
+        public static IEnumerable<object[]> EveryEncoderCodecAndSource()
+        {
+            var monitor = Monitors.Primary();
+            var sources = new CaptureSource[]
+            {
+                new MonitorSource(monitor),
+                new RegionSource(monitor, new PixelRect(monitor.Bounds.X + 10, monitor.Bounds.Y + 10, 640, 360)),
+                new WindowSource(0x1234, "Notepad", new PixelRect(monitor.Bounds.X, monitor.Bounds.Y, 800, 600), monitor),
+            };
+
+            foreach (EncoderKind kind in Enum.GetValues(typeof(EncoderKind)))
+            {
+                foreach (VideoCodec codec in Enum.GetValues(typeof(VideoCodec)))
+                {
+                    if (EncoderCatalog.FfmpegName(kind, codec) == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var backend in new[] { CaptureBackend.Ddagrab, CaptureBackend.Gfxcapture, CaptureBackend.Gdigrab })
+                    {
+                        foreach (var source in sources)
+                        {
+                            yield return new object[] { kind, codec, backend, source };
+                        }
+                    }
+                }
+            }
+        }
+
+        [Theory]
+        [MemberData(nameof(EveryEncoderCodecAndSource))]
+        public void Build_EveryEncoderCodecBackendAndSource_GivesOneVideoInputAndTheRightEncoder(EncoderKind kind, VideoCodec codec, CaptureBackend backend, CaptureSource source)
+        {
+            var args = Build(Plan(source, backend, kind, codec));
+
+            Assert.Equal(EncoderCatalog.FfmpegName(kind, codec), ValueAfter(args, "-c:v"));
+            Assert.Equal(2, args.Count(a => a == "-i"));
+            Assert.Equal("0:v:0", ValueAfter(args, "-map"));
+            Assert.Equal(Segment, args[args.Count - 1]);
+        }
+
         [Fact]
         public void Build_WritesProgressToStdoutAndMatroskaSegment()
         {
@@ -75,6 +117,15 @@ namespace Recora.Core.Tests.Ffmpeg
             Assert.Equal("matroska", ValueAfter(args, "-f", last: true));
             Assert.Equal(Segment, args[args.Count - 1]);
             Assert.Equal("aac", ValueAfter(args, "-c:a"));
+        }
+
+        [Fact]
+        public void Build_SegmentSurvivesACrash_PacketsFlushedAndClustersShort()
+        {
+            var args = Build(Plan());
+
+            Assert.Equal("1", ValueAfter(args, "-flush_packets"));
+            Assert.Equal("2000", ValueAfter(args, "-cluster_time_limit"));
         }
 
         [Fact]

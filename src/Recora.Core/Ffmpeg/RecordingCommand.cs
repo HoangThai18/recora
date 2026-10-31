@@ -51,9 +51,12 @@ namespace Recora.Core.Ffmpeg
                 }
             }
 
-            // Short Matroska clusters: if the PC dies mid-recording, at most ~2 seconds are lost (BR-01).
+            // If Recora or the PC dies mid-recording, the segment must already be on disk (BR-01): every packet is
+            // handed to the OS as soon as it is muxed (otherwise FFmpeg holds 32 KB, a short recording's whole file),
+            // and short Matroska clusters keep the loss to about 2 seconds.
             return args.Add(
                 "-max_muxing_queue_size", "4096",
+                "-flush_packets", "1",
                 "-f", "matroska", "-cluster_time_limit", "2000",
                 segmentPath);
         }

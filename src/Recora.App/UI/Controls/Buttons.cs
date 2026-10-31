@@ -109,10 +109,22 @@ namespace Recora.App.UI.Controls
     internal sealed class RecordButton : PaintedButton
     {
         private RecordState _state;
+        private string _shortcut = "F12";
 
         public RecordButton()
         {
             Text = "Ghi (F12)";
+        }
+
+        /// <summary>The record hotkey shown in the tooltip and accessible name.</summary>
+        public string Shortcut
+        {
+            get => _shortcut;
+            set
+            {
+                _shortcut = value;
+                State = _state;
+            }
         }
 
         public RecordState State
@@ -121,7 +133,7 @@ namespace Recora.App.UI.Controls
             set
             {
                 _state = value;
-                Text = value == RecordState.Idle ? "Ghi (F12)" : "Dừng (F12)";
+                Text = (value == RecordState.Idle ? "Ghi" : "Dừng") + " (" + _shortcut + ")";
                 Invalidate();
             }
         }

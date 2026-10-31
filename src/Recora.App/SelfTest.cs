@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using Recora.App.Audio;
 using Recora.App.Logging;
 using Recora.App.Native;
+using Recora.App.Platform;
 using Recora.App.Recording;
 using Recora.Core.Capture;
 using Recora.Core.Encoding;
@@ -24,7 +25,7 @@ namespace Recora.App
     /// encoders in app order, records about three seconds of screen plus a test tone through the audio pipe, stops with
     /// <c>q</c>, finalizes to MP4 and writes <c>selftest.json</c>. Exit code 0 only if an MP4 came out.
     /// </summary>
-    internal static class SelfTest
+    internal static partial class SelfTest
     {
         private static readonly TimeSpan Target = TimeSpan.FromSeconds(3);
 
@@ -61,7 +62,21 @@ namespace Recora.App
             report.HasDdagrab = caps.HasDdagrab;
             report.HasGfxcapture = caps.HasGfxcapture;
 
-            var source = new MonitorSource(PrimaryMonitor());
+            var monitors = MonitorService.List();
+            foreach (var info in monitors)
+            {
+                report.Monitors.Add($"{info.Name}: {info.Target.DeviceName} {info.Target.Bounds} adapter \"{info.AdapterName}\" ({info.Target.Vendor}) dda output {info.Target.DdaOutputIndex?.ToString() ?? "-"}{(info.Target.IsPrimary ? " primary" : string.Empty)}");
+            }
+
+            // CI runners have no sound card: listing must work and say so, recording goes on with the test tone.
+            var speakers = AudioDevices.Speakers();
+            var microphones = AudioDevices.Microphones();
+            report.AudioDevices = speakers.Count + microphones.Count == 0
+                ? "không có thiết bị âm thanh"
+                : $"{speakers.Count} loa ({string.Join(", ", speakers.Select(d => d.Name))}), {microphones.Count} micro";
+
+            var primary = monitors.FirstOrDefault(m => m.Target.IsPrimary) ?? monitors[0];
+            var source = new MonitorSource(primary.Target);
             var plan = FirstWorkingPlan(ffmpeg, source, caps, encoders, report)
                 ?? throw new InvalidOperationException("no capture backend and encoder pair worked");
 
@@ -80,6 +95,10 @@ namespace Recora.App
             report.Output = output;
             report.OutputBytes = File.Exists(output) ? new FileInfo(output).Length : 0;
             report.Ok = finalize.ExitCode == 0 && report.OutputBytes > 0 && report.SegmentExitCode == 0;
+
+            // The same recorder the app uses, with a pause in the middle.
+            RecordWithPause(directory, report);
+            report.Ok = report.Ok && report.PausedOutput != null;
         }
 
         private static RecordingPlan? FirstWorkingPlan(
@@ -204,16 +223,6 @@ namespace Recora.App
             }
         }
 
-        private static MonitorTarget PrimaryMonitor()
-        {
-            var screen = Screen.PrimaryScreen;
-            var bounds = new PixelRect(screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height);
-            var hmonitor = NativeMethods.MonitorFromPoint(new NativeMethods.Point { X = 0, Y = 0 }, NativeMethods.MonitorDefaultToPrimary);
-
-            // DXGI enumeration arrives in P1; until then the primary screen is assumed to be output 0 of the default adapter.
-            return new MonitorTarget(screen.DeviceName, bounds, 0, hmonitor.ToInt64(), GpuVendor.Unknown, IsPrimary: true);
-        }
-
         private static string LastLines(string text, int count) =>
             string.Join(" | ", text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).Reverse().Take(count).Reverse());
 
@@ -250,6 +259,12 @@ namespace Recora.App
         [DataMember(Order = 18)] public double FlashLateMilliseconds { get; set; }
         [DataMember(Order = 19)] public double AudioSeconds { get; set; }
         [DataMember(Order = 20)] public bool AudioDrained { get; set; }
+        [DataMember(Order = 21)] public List<string> Monitors { get; set; } = new List<string>();
+        [DataMember(Order = 22)] public string? AudioDevices { get; set; }
+        [DataMember(Order = 23)] public string? PausedOutput { get; set; }
+        [DataMember(Order = 24)] public double PausedSeconds { get; set; }
+        [DataMember(Order = 25)] public string? PausedEncoder { get; set; }
+        [DataMember(Order = 26)] public int LeftoverSessions { get; set; }
         [DataMember(Order = 17)] public string? Error { get; set; }
     }
 

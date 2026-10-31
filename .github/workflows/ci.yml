@@ -123,9 +123,17 @@ jobs:
         shell: pwsh
         run: tools/ci/selftest.ps1
 
+      - name: Bộ ghi của app (tạm dừng, sập giữa chừng rồi cứu, lưu cài đặt)
+        shell: pwsh
+        run: tools/ci/recorder-checks.ps1
+
       - name: Chụp giao diện
         shell: pwsh
         run: tools/ci/ui-screenshots.ps1
+
+      - name: Cửa sổ Recora không lọt vào video của chính nó
+        shell: pwsh
+        run: tools/ci/exclusion-check.ps1
 
       - name: Đóng gói zip portable
         id: package
