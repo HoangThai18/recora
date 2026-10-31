@@ -3,7 +3,7 @@ id: P0-T06
 title: Chạy FFmpeg, bơm tiếng qua pipe và chế độ --selftest
 phase: P0
 lane: DESKTOP
-status: todo
+status: doing
 deps: [P0-T04]
 touches: [src/Recora.Core/Audio/**, tests/Recora.Core.Tests/Audio/**, src/Recora.App/Recording/FfmpegProcess.cs, src/Recora.App/Recording/FfmpegLocator.cs, src/Recora.App/Audio/AudioPump.cs, src/Recora.App/SelfTest.cs, src/Recora.App/Program.cs, src/Recora.App/Logging/**]
 size: M
