@@ -17,6 +17,7 @@ namespace Recora.App.UI
         General,
         Library,
         About,
+        Edit,
     }
 
     /// <summary>A page in the content area: a title row, then cards stacked top to bottom with scrolling.</summary>

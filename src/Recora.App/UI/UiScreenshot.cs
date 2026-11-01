@@ -44,6 +44,9 @@ namespace Recora.App.UI
                 form.SetPage(PageKind.General, new GeneralPage(settings, settings.OutputFolder));
                 form.SetPage(PageKind.Library, new LibraryPage(() => LibraryFiles.Scan(libraryFolder)));
                 form.SetPage(PageKind.About, new AboutPage(Program.Version, "ffmpeg version 8.1.3"));
+                var edit = new EditPage();
+                edit.ShowIntro("Tải Clipora và mở (khoảng 70 MB)", "Máy này chưa có Clipora.", busy: false);
+                form.SetPage(PageKind.Edit, edit);
 
                 form.Show();
                 form.ShowPage(page);

@@ -63,6 +63,7 @@ namespace Recora.App.UI
             AddPage(PageKind.Hotkeys, new PlaceholderPage("Phím tắt", "Đổi phím ghi, tạm dừng và chụp ảnh."));
             AddPage(PageKind.General, new PlaceholderPage("Chung", "Thư mục lưu, mở cùng Windows, ẩn xuống khay khi đóng."));
             AddPage(PageKind.Library, new PlaceholderPage("Thư viện", "Các video và ảnh đã ghi, mở, xem thư mục hoặc xoá."));
+            AddPage(PageKind.Edit, new PlaceholderPage("Dựng phim", "Dựng video ngay trong Recora bằng Clipora."));
             AddPage(PageKind.About, new PlaceholderPage("Giới thiệu", "Recora — app quay màn hình miễn phí của thaipro.store, mã nguồn mở MIT."));
 
             SelectMode(CaptureModeChoice.FullScreen);
@@ -261,6 +262,7 @@ namespace Recora.App.UI
                 (PageKind.Hotkeys, IconKind.Keyboard, "Phím tắt"),
                 (PageKind.General, IconKind.Sliders, "Chung"),
                 (PageKind.Library, IconKind.Library, "Thư viện"),
+                (PageKind.Edit, IconKind.Film, "Dựng phim"),
                 (PageKind.About, IconKind.Info, "Giới thiệu"),
             };
 
@@ -327,7 +329,7 @@ namespace Recora.App.UI
             }
         }
 
-        private sealed class BorderedPanel : Panel
+        internal sealed class BorderedPanel : Panel
         {
             private readonly bool _bottom;
 

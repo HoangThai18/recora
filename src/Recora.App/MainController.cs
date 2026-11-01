@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using NAudio.CoreAudioApi;
 using Recora.App.Audio;
+using Recora.App.Editor;
 using Recora.App.Logging;
 using Recora.App.Native;
 using Recora.App.Platform;
@@ -47,6 +48,9 @@ namespace Recora.App
         private readonly List<WasapiSource> _replayAudio = new List<WasapiSource>();
         private readonly Timer _replayRestart;
         private ReplayBuffer? _replay;
+        private EditPage? _edit;
+        private CliporaSession? _clipora;
+        private bool _editorBusy;
         private bool _replayBusy;
         private bool _replaySaving;
         private string? _replaySignature;
@@ -258,6 +262,9 @@ namespace Recora.App
             }
 
             _disposed = true;
+
+            // Clipora lives on after Recora as a window of its own: an unsaved edit must never close with us.
+            _edit?.Host.Release();
             CloseFrame();
             CloseExtras();
             _replayRestart.Dispose();
@@ -303,7 +310,14 @@ namespace Recora.App
 
             var library = new LibraryPage(() => LibraryFiles.Scan(OutputFolder));
             library.TrimRequested += async (_, item) => await Trim(library, item);
+            library.EditRequested += async (_, item) => await OpenEditor(new[] { item.Path });
             _form.SetPage(PageKind.Library, library);
+
+            _edit = new EditPage();
+            _edit.Open.Click += async (_, _) => await OpenEditor(new string[0]);
+            _edit.Detach.Click += (_, _) => DetachEditor();
+            _form.SetPage(PageKind.Edit, _edit);
+            ShowEditorIntro(null);
             var about = new AboutPage(Program.Version, environment.FfmpegVersion);
             about.CheckUpdate.Click += async (_, _) =>
             {
@@ -1465,6 +1479,109 @@ namespace Recora.App
 
         private static string ReplayLengthText(int seconds) => seconds < 60 ? seconds + " giây" : seconds / 60 + " phút";
 
+        /// <summary>
+        /// "Dựng phim": shows Clipora inside the page, starting (and if needed downloading) it first, then puts
+        /// <paramref name="paths"/> on a new timeline. A Clipora already running is reused, embedded again if detached.
+        /// </summary>
+        private async Task OpenEditor(IReadOnlyList<string> paths)
+        {
+            var page = _edit;
+            if (page == null || _editorBusy)
+            {
+                return;
+            }
+
+            _form.ShowPage(PageKind.Edit);
+            _editorBusy = true;
+            try
+            {
+                var session = _clipora;
+                if (session == null || !session.IsAlive)
+                {
+                    var install = CliporaRuntime.Find();
+                    if (install == null)
+                    {
+                        page.ShowIntro("Đang tải…", "Đang hỏi bản Clipora mới nhất…", busy: true);
+                        void Progress(long done, long total) => _form.BeginInvoke(new Action(() =>
+                            page.ShowProgress(done, total, $"Đang tải Clipora: {LibraryIndex.FormatBytes(done)} / {LibraryIndex.FormatBytes(total)}")));
+                        install = await Task.Run(() => CliporaRuntime.Download(Progress, System.Threading.CancellationToken.None));
+                    }
+
+                    page.ShowIntro("Đang mở…", "Đang mở Clipora…", busy: true);
+                    session = await Task.Run(() => CliporaSession.Start(install.Exe));
+                    var started = session;
+                    session.Process.Exited += (_, _) => _form.BeginInvoke(new Action(() => EditorClosed(started)));
+                    _clipora = session;
+                }
+
+                if (page.Host.Child == IntPtr.Zero)
+                {
+                    var running = session;
+                    var window = await Task.Run(() => running.WaitForWindow(TimeSpan.FromSeconds(45)));
+                    if (window == IntPtr.Zero)
+                    {
+                        throw new RecoraException(session.IsAlive ? "clipora_no_window" : "clipora_exited", "no Clipora window within 45 s");
+                    }
+
+                    page.Host.Adopt(window);
+                }
+
+                page.ShowRunning("Clipora trong Recora · lưu dự án bằng Ctrl+S trong Clipora · đóng Recora thì Clipora tách ra cửa sổ riêng, không mất gì");
+                page.Host.FocusChild();
+                if (paths.Count > 0)
+                {
+                    var editor = session;
+                    var added = await Task.Run(() => editor.AddToTimeline(paths));
+                    if (added == 0)
+                    {
+                        _tray.Notify("Clipora chưa nhận video", "Clipora không nhập được file này. Thử kéo file vào cửa sổ Clipora.", ToolTipIcon.Warning);
+                    }
+                }
+            }
+            catch (Exception error) when (error is RecoraException || error is IOException || error is System.Net.WebException
+                || error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is UnauthorizedAccessException
+                || error is System.IO.InvalidDataException)
+            {
+                Log.Error("editor failed to open", error);
+                ShowEditorIntro(Explain(error is RecoraException known ? known.Code : error is System.Net.WebException ? "clipora_unavailable" : "unexpected"));
+            }
+            finally
+            {
+                _editorBusy = false;
+            }
+        }
+
+        /// <summary>"Tách ra cửa sổ riêng": Clipora keeps running in its own window; Mở trình dựng takes it back in.</summary>
+        private void DetachEditor()
+        {
+            _edit?.Host.Release();
+            ShowEditorIntro("Clipora đang mở ở cửa sổ riêng. Bấm Mở trình dựng để đưa vào lại trong Recora.");
+        }
+
+        private void EditorClosed(CliporaSession session)
+        {
+            if (!ReferenceEquals(_clipora, session))
+            {
+                return;
+            }
+
+            _clipora = null;
+            ShowEditorIntro("Clipora đã đóng.");
+        }
+
+        private void ShowEditorIntro(string? status)
+        {
+            var page = _edit;
+            if (page == null)
+            {
+                return;
+            }
+
+            var install = CliporaRuntime.Find();
+            var button = _clipora != null && _clipora.IsAlive ? "Mở trình dựng" : install != null ? "Mở trình dựng" : "Tải Clipora và mở (khoảng 70 MB)";
+            page.ShowIntro(button, status ?? (install != null ? "Clipora sẵn sàng (" + install.Origin + ")." : "Máy này chưa có Clipora."), busy: false);
+        }
+
         /// <summary>"Cắt": the length comes from the library index, or from FFmpeg for files Recora did not record.</summary>
         private async Task Trim(LibraryPage library, LibraryItem item)
         {
@@ -1725,6 +1842,10 @@ namespace Recora.App
             "device_unavailable" => "Không mở được webcam: có thể app khác (Zalo, Zoom, trình duyệt) đang dùng nó. Tắt app đó rồi thử lại.",
             "audio_failed" => "Không ghi được âm thanh ở định dạng này. Thử M4A ở trang chủ chế độ Âm thanh.",
             "region_too_small" => "Vùng ghi quá nhỏ, cần ít nhất 160×90 điểm ảnh.",
+            "clipora_unavailable" => "Không tải được Clipora (mạng hoặc trang phát hành không trả lời). Thử lại, hoặc cài Clipora từ thaipro.store/phan-mem/clipora.",
+            "clipora_corrupt" => "File Clipora tải về không khớp chữ ký SHA-256 nên Recora đã xoá. Thử tải lại.",
+            "clipora_no_window" => "Clipora chạy nhưng không hiện cửa sổ. Clipora cần card đồ hoạ hỗ trợ DirectX 12 hoặc Vulkan; xem nhật ký ở trang Giới thiệu.",
+            "clipora_exited" => "Clipora tắt ngay khi mở. Cập nhật driver card đồ hoạ rồi thử lại; nhật ký của Clipora nằm trong thư mục data cạnh clipora.exe.",
             "trim_failed" => "Không cắt được video này. Thử lại, hoặc xem nhật ký ở trang Giới thiệu.",
             "replay_save_failed" => "Không ghép được khoảnh khắc thành video. Thử lại, hoặc xem nhật ký ở trang Giới thiệu.",
             _ => "Có lỗi không mong muốn. Xem nhật ký ở trang Giới thiệu và gửi kèm khi báo lỗi.",

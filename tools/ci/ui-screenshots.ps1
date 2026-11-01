@@ -14,7 +14,7 @@ Write-Host "primary screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bound
 $library = Join-Path $root 'artifacts/selftest/recorder'
 $shots = @()
 foreach ($scale in @('1', '1.5')) {
-    foreach ($page in @('Home', 'Video', 'Audio', 'Screenshot', 'Hotkeys', 'General', 'Library', 'About')) {
+    foreach ($page in @('Home', 'Video', 'Audio', 'Screenshot', 'Hotkeys', 'General', 'Library', 'Edit', 'About')) {
         $shots += ,@($scale, $page, $false)
     }
     $shots += ,@($scale, 'Home', $true)

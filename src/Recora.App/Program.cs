@@ -30,9 +30,10 @@ namespace Recora.App
             var replay = OptionValue(args, "--selftest-replay");
             var trim = OptionValue(args, "--selftest-trim");
             var encoderArgs = OptionValue(args, "--dump-encoder-args");
+            var editor = OptionValue(args, "--selftest-editor");
             var screenshot = OptionValue(args, "--ui-screenshot");
 
-            if (selfTest != null || crash != null || recover != null || roundtrip != null || exclusion != null || modes != null || replay != null || trim != null || encoderArgs != null || screenshot != null)
+            if (selfTest != null || crash != null || recover != null || roundtrip != null || exclusion != null || modes != null || replay != null || trim != null || encoderArgs != null || editor != null || screenshot != null)
             {
                 // A GUI-subsystem exe has no console; borrow the caller's so CI logs show progress.
                 NativeMethods.AttachConsole(NativeMethods.AttachParentProcess);
@@ -66,6 +67,11 @@ namespace Recora.App
             if (trim != null)
             {
                 return SelfTest.Trim(trim);
+            }
+
+            if (editor != null)
+            {
+                return SelfTest.Editor(editor);
             }
 
             if (encoderArgs != null)

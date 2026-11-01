@@ -150,6 +150,10 @@ jobs:
         shell: pwsh
         run: tools/ci/trim-checks.ps1
 
+      - name: Dựng phim (tải Clipora, nhúng cửa sổ, đưa video lên timeline)
+        shell: pwsh
+        run: tools/ci/editor-checks.ps1
+
       - name: Cửa sổ Recora không lọt vào video của chính nó
         shell: pwsh
         run: tools/ci/exclusion-check.ps1
