@@ -93,7 +93,7 @@ namespace Recora.App
             {
                 var scale = float.Parse(OptionValue(args, "--ui-scale") ?? "1", CultureInfo.InvariantCulture);
                 var page = (PageKind)Enum.Parse(typeof(PageKind), OptionValue(args, "--page") ?? nameof(PageKind.Home), ignoreCase: true);
-                return UiScreenshot.Run(screenshot, scale, page, OptionValue(args, "--library"), args.Contains("--recording"), OptionValue(args, "--dialog"), args.Contains("--demo"));
+                return UiScreenshot.Run(screenshot, scale, page, OptionValue(args, "--library"), args.Contains("--recording"), OptionValue(args, "--dialog"), args.Contains("--demo"), OptionValue(args, "--theme"));
             }
 
             return RunApp(args.Contains("--minimized"));
@@ -121,6 +121,7 @@ namespace Recora.App
                 }
 
                 Log.Info($"Recora {Version} starting{(AppPaths.IsPortable ? " (portable)" : string.Empty)}, {Environment.OSVersion}");
+                Theme.Use(Theme.For(settings.Theme));
                 using (var form = new MainForm())
                 using (var controller = new MainController(form, settings, AppPaths.SettingsFile))
                 {

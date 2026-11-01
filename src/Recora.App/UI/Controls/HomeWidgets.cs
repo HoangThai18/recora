@@ -94,14 +94,14 @@ namespace Recora.App.UI.Controls
             var g = e.Graphics;
             Theme.Smooth(g);
             var box = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
-            var radius = 10 * Dpi;
+            var radius = 12 * Dpi;
 
             using (var clip = Theme.RoundedRect(box, radius))
             {
                 g.SetClip(clip);
                 if (_recording)
                 {
-                    using (var brush = new LinearGradientBrush(box, Theme.FromHex(0x13263D), Theme.FromHex(0x1B3A5E), 60f))
+                    using (var brush = new LinearGradientBrush(box, Theme.StageTop, Theme.StageBottom, 60f))
                     {
                         g.FillRectangle(brush, box);
                     }
@@ -133,7 +133,7 @@ namespace Recora.App.UI.Controls
                 g.ResetClip();
             }
 
-            Theme.StrokeRounded(g, _recording ? Theme.FromHex(0x2B4E77) : Theme.Border, 1f * Dpi, box, radius);
+            Theme.StrokeRounded(g, _recording ? Theme.StageEdge : Theme.Border, 1f * Dpi, box, radius);
         }
 
         private void PaintClock(Graphics g, RectangleF box)
@@ -171,7 +171,7 @@ namespace Recora.App.UI.Controls
             var clockTop = top + labelSize.Height + 6 * Dpi;
             var clockHeight = TextRenderer.MeasureText(_clock, Theme.Clock).Height;
             TextRenderer.DrawText(g, _clock, Theme.Clock, new Rectangle((int)box.X, (int)clockTop, (int)box.Width, clockHeight), Color.White, flags);
-            TextRenderer.DrawText(g, _details, Theme.MonoSmall, new Rectangle((int)box.X, (int)(clockTop + clockHeight + 4 * Dpi), (int)box.Width, (int)(20 * Dpi)), Color.FromArgb(190, Color.White), flags | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(g, _details, Theme.Small, new Rectangle((int)box.X, (int)(clockTop + clockHeight + 4 * Dpi), (int)box.Width, (int)(20 * Dpi)), Color.FromArgb(190, Color.White), flags | TextFormatFlags.EndEllipsis);
         }
     }
 
@@ -261,8 +261,8 @@ namespace Recora.App.UI.Controls
 
                 var selected = string.Equals(tile.DeviceName, _selected, StringComparison.OrdinalIgnoreCase);
                 var hover = tile.DeviceName == _hover;
-                Theme.FillRounded(g, selected ? Theme.Accent : hover ? Theme.AccentHover : Theme.Background, box, 6 * Dpi);
-                Theme.StrokeRounded(g, selected ? Theme.Accent : Theme.Border, 1.2f * Dpi, box, 6 * Dpi);
+                Theme.FillRounded(g, selected ? Theme.AccentStrong : hover ? Theme.AccentHover : Theme.Background, box, 8 * Dpi);
+                Theme.StrokeRounded(g, selected ? Theme.AccentStrong : Theme.Border, 1.2f * Dpi, box, 8 * Dpi);
 
                 var text = selected ? Color.White : Theme.Text;
                 var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
@@ -364,7 +364,7 @@ namespace Recora.App.UI.Controls
             var g = e.Graphics;
             Theme.Smooth(g);
             var box = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
-            Theme.FillRounded(g, _strong ? Theme.Accent : Theme.AccentSoft, box, box.Height / 2);
+            Theme.FillRounded(g, _strong ? Theme.AccentStrong : Theme.AccentSoft, box, box.Height / 2);
             TextRenderer.DrawText(g, Text, Theme.Small, Rectangle.Round(box), _strong ? Color.White : Theme.Accent,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
         }

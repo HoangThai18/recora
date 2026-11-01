@@ -278,13 +278,13 @@ namespace Recora.App.UI.Controls
             var shrink = Pressed ? 1.5f * Dpi : 0f;
             var box = RectangleF.Inflate(b, -1 * Dpi - shrink, -1 * Dpi - shrink);
             var fill = Primary
-                ? Theme.Blend(Theme.Accent, Theme.FromHex(0x15528D), HoverAmount)
+                ? Theme.Blend(Theme.AccentStrong, Theme.AccentPressed, HoverAmount)
                 : Theme.Blend(Theme.Surface, Theme.AccentHover, HoverAmount);
-            Theme.FillRounded(g, fill, box, 7 * Dpi);
+            Theme.FillRounded(g, fill, box, 8 * Dpi);
 
             if (!Primary)
             {
-                Theme.StrokeRounded(g, Theme.Blend(Theme.Border, Theme.Accent, HoverAmount * 0.6), 1.2f * Dpi, box, 7 * Dpi);
+                Theme.StrokeRounded(g, Theme.Blend(Theme.Border, Theme.Accent, HoverAmount * 0.6), 1.2f * Dpi, box, 8 * Dpi);
             }
 
             DrawCenteredText(g, Text, Font, Primary ? Color.White : (Enabled ? Theme.Text : Theme.Muted), box);

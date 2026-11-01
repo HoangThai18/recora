@@ -18,7 +18,7 @@ namespace Recora.App.UI
     }
 
     /// <summary>
-    /// The main window: capture modes and the record button on top, pages on the left, a blue status bar at the bottom.
+    /// The main window: capture modes and the record button on top, pages on the left, a status line at the bottom.
     /// It only shows state and raises events; recording logic lives outside the UI.
     /// </summary>
     internal sealed class MainForm : Form
@@ -150,6 +150,7 @@ namespace Recora.App.UI
             page.Visible = _nav[kind].Selected;
             _pages[kind] = page;
             _content.Controls.Add(page);
+            Theme.StyleScrollBars(page);
         }
 
         public T? PageOf<T>(PageKind kind)
@@ -159,15 +160,9 @@ namespace Recora.App.UI
         {
             base.OnHandleCreated(e);
 
-            // Windows 11: a white title bar with the app's border colour instead of the accent-coloured default.
-            // Older Windows ignores these attributes.
-            var caption = ColorRef(Theme.Surface);
-            var border = ColorRef(Theme.Border);
-            Native.NativeMethods.DwmSetWindowAttribute(Handle, Native.NativeMethods.DwmCaptionColor, ref caption, sizeof(int));
-            Native.NativeMethods.DwmSetWindowAttribute(Handle, Native.NativeMethods.DwmBorderColor, ref border, sizeof(int));
+            // The title bar takes the window colour (Windows 11) and goes dark with the dark palette (Windows 10 2004+).
+            Theme.StyleWindow(this);
         }
-
-        private static int ColorRef(Color color) => color.R | (color.G << 8) | (color.B << 16);
 
         protected override void WndProc(ref Message m)
         {
@@ -189,11 +184,11 @@ namespace Recora.App.UI
 
         private Control BuildTopBar()
         {
-            var bar = new BorderedPanel(bottomBorder: true) { Dock = DockStyle.Top, Height = 78, BackColor = Theme.Surface, Padding = new Padding(10, 6, 14, 6) };
+            var bar = new BorderedPanel(bottomBorder: true) { Dock = DockStyle.Top, Height = 78, BackColor = Theme.Background, Padding = new Padding(10, 6, 14, 6) };
 
             var brand = new BrandMark { Dock = DockStyle.Left, Width = 150 };
 
-            var actions = new Panel { Dock = DockStyle.Right, Width = 176, BackColor = Theme.Surface };
+            var actions = new Panel { Dock = DockStyle.Right, Width = 176, BackColor = Theme.Background };
             Screenshot = new IconButton(IconKind.Camera, "Chụp ảnh (F11)") { Bounds = new Rectangle(0, 12, 44, 44) };
             Pause = new IconButton(IconKind.Pause, "Tạm dừng (Shift+F12)") { Bounds = new Rectangle(50, 12, 44, 44), Enabled = false, Tint = Theme.Pause };
             Record = new RecordButton { Bounds = new Rectangle(102, 0, 66, 66) };
@@ -202,7 +197,7 @@ namespace Recora.App.UI
             Record.Click += (_, _) => RecordClicked?.Invoke(this, EventArgs.Empty);
             actions.Controls.AddRange(new Control[] { Screenshot, Pause, Record });
 
-            var modes = new ModeBar { Dock = DockStyle.Fill, BackColor = Theme.Surface, Padding = new Padding(4, 0, 4, 0) };
+            var modes = new ModeBar { Dock = DockStyle.Fill, BackColor = Theme.Background, Padding = new Padding(4, 0, 4, 0) };
             AddMode(modes, CaptureModeChoice.FullScreen, IconKind.Monitor, "Toàn màn hình");
             AddMode(modes, CaptureModeChoice.Region, IconKind.Region, "Chọn vùng");
             AddMode(modes, CaptureModeChoice.Window, IconKind.Window, "Cửa sổ");
@@ -311,7 +306,7 @@ namespace Recora.App.UI
             public BrandMark()
             {
                 SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-                BackColor = Theme.Surface;
+                BackColor = Theme.Background;
                 AccessibleName = "Recora";
             }
 

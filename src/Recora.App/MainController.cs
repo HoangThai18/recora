@@ -78,6 +78,7 @@ namespace Recora.App
         private bool _activeAudioOnly;
         private bool _preparing;
         private Countdown? _countdown;
+        private RecordingBar? _bar;
 
         public MainController(MainForm form, AppSettings settings, string settingsPath)
         {
@@ -127,6 +128,7 @@ namespace Recora.App
             _form.ModeSelected += (_, mode) => OnModeSelected(mode);
             _form.ShowRequested += (_, _) => ShowWindow();
             _form.FormClosing += OnFormClosing;
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
             _form.HandleCreated += (_, _) => ApplyCaptureExclusion();
             _form.Home.MonitorSelected += (_, device) =>
             {
@@ -262,6 +264,7 @@ namespace Recora.App
             }
 
             _disposed = true;
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
 
             // Clipora lives on after Recora as a window of its own: an unsaved edit must never close with us.
             _edit?.Host.Release();
@@ -442,10 +445,30 @@ namespace Recora.App
             }
         }
 
+        /// <summary>Windows switched between light and dark apps; follow it when the look is "Theo Windows".</summary>
+        private void OnUserPreferenceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+        {
+            if (e.Category == Microsoft.Win32.UserPreferenceCategory.General && _settings.Theme == ThemeMode.System && !_disposed)
+            {
+                _form.BeginInvoke(new Action(ApplyTheme));
+            }
+        }
+
+        private void ApplyTheme()
+        {
+            var palette = Theme.For(_settings.Theme);
+            if (!ReferenceEquals(palette, Theme.Current))
+            {
+                Log.Info("look: " + palette.Name);
+                Theme.Use(palette, _form);
+            }
+        }
+
         private void SettingsChanged()
         {
             _saveTimer.Stop();
             _saveTimer.Start();
+            ApplyTheme();
             ResetMeters();
             UpdateDisk();
             RefreshHome();
@@ -1029,10 +1052,15 @@ namespace Recora.App
                 CloseAudio();
                 CloseExtras();
             }
-            else if (frame.HasValue)
+            else
             {
-                _frame = new RegionFrame(frame.Value);
-                _frame.Show();
+                if (frame.HasValue)
+                {
+                    _frame = new RegionFrame(frame.Value);
+                    _frame.Show();
+                }
+
+                OpenBar(source is DeviceSource || audioOnly != null ? SelectedMonitor().Target.Bounds : source.Monitor.Bounds);
             }
 
             if (_memory != null && _memory.Dirty)
@@ -1180,8 +1208,37 @@ namespace Recora.App
             }
         }
 
+        /// <summary>The recording bar on the recorded screen; Windows that can't hide it from capture get none.</summary>
+        private void OpenBar(PixelRect screen)
+        {
+            if (!_settings.RecordingOverlay)
+            {
+                return;
+            }
+
+            try
+            {
+                _bar = RecordingBar.Open(screen, _settings.OverlayCorner);
+                if (_bar != null)
+                {
+                    _bar.PauseClicked += (_, _) => TogglePause();
+                    _bar.StopClicked += (_, _) => ToggleRecord();
+                    ShowStatus();
+                }
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is ExternalException)
+            {
+                Log.Error("recording bar failed", error);
+                _bar?.Dispose();
+                _bar = null;
+            }
+        }
+
         private void CloseExtras()
         {
+            _bar?.Close();
+            _bar?.Dispose();
+            _bar = null;
             _clicks?.Dispose();
             _clicks = null;
             _overlay?.Close();
@@ -1439,28 +1496,28 @@ namespace Recora.App
             string state;
             if (replay == null)
             {
-                state = "> đang kiểm tra máy…";
+                state = "Đang kiểm tra máy…";
             }
             else if (_replaySaving)
             {
-                state = "> đang lưu khoảnh khắc…";
+                state = "Đang lưu khoảnh khắc…";
             }
             else if (replay.IsRunning)
             {
                 var held = replay.Held;
-                state = $"> đang giữ {(int)held.TotalMinutes}:{held.Seconds:00} / {length} · {replay.EncoderName}";
+                state = $"Đang giữ {(int)held.TotalMinutes}:{held.Seconds:00} / {length} · {replay.EncoderName}";
             }
             else if (Busy || _preparing)
             {
-                state = "> tạm nghỉ trong lúc ghi thường";
+                state = "Tạm nghỉ trong lúc ghi thường";
             }
             else if (_replayBusy)
             {
-                state = "> đang mở bộ ghi…";
+                state = "Đang mở bộ ghi…";
             }
             else
             {
-                state = _settings.ReplayEnabled ? "> chưa chạy được, Recora sẽ thử lại" : "> đang tắt";
+                state = _settings.ReplayEnabled ? "Chưa chạy được, Recora sẽ thử lại" : "Đang tắt";
             }
 
             _form.Home.ShowReplay(hint, state, replay != null && replay.IsRunning && !_replaySaving);
@@ -1734,6 +1791,12 @@ namespace Recora.App
                 : _activeAudioOnly ? $"{LibraryIndex.FormatBytes(status.Bytes)} · {status.Encoder}"
                 : $"{LibraryIndex.FormatBytes(status.Bytes)} · {status.Fps:0} fps · {status.Encoder}";
             _form.Home.Preview.ShowRecording(busy, state == SessionState.Paused, string.IsNullOrEmpty(clock) ? "00:00:00" : clock, details);
+            if (_bar != null && status != null && (state == SessionState.Recording || state == SessionState.Paused))
+            {
+                _bar.Update(state == SessionState.Paused, clock, _activeAudioOnly
+                    ? LibraryIndex.FormatBytes(status.Bytes)
+                    : $"{LibraryIndex.FormatBytes(status.Bytes)} · {status.Fps:0} fps");
+            }
             _form.Record.State = state == SessionState.Paused ? RecordState.Paused : recording ? RecordState.Recording : RecordState.Idle;
             _form.Record.Enabled = state != SessionState.Finalizing && _recorder != null;
             _form.Pause.Enabled = state == SessionState.Recording || state == SessionState.Paused;

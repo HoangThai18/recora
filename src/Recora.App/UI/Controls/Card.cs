@@ -4,7 +4,7 @@ using System.Windows.Forms;
 namespace Recora.App.UI.Controls
 {
     /// <summary>
-    /// A white rounded panel with an optional "// title" header in monospace, the window-card look of thaipro.store.
+    /// A rounded surface panel with an optional title, the card look of Windows 11 Settings.
     /// Children go in <see cref="Body"/>.
     /// </summary>
     internal sealed class Card : Panel
@@ -71,8 +71,10 @@ namespace Recora.App.UI.Controls
         {
             var dpi = DeviceDpi / 96f * Theme.UiScale;
             int S(int value) => (int)(value * dpi);
-            Padding = new Padding(S(18), S(string.IsNullOrEmpty(_title) ? 16 : 40), S(18), S(14));
+            Padding = new Padding(S(20), S(string.IsNullOrEmpty(_title) ? 18 : 46), S(20), S(16));
         }
+
+        private static string Capitalize(string title) => title.Length == 0 ? title : char.ToUpper(title[0]) + title.Substring(1);
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -81,14 +83,14 @@ namespace Recora.App.UI.Controls
             var dpi = DeviceDpi / 96f * Theme.UiScale;
             var box = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
 
-            Theme.FillRounded(g, Theme.Surface, box, 10 * dpi);
-            Theme.StrokeRounded(g, Theme.Border, 1f * dpi, box, 10 * dpi);
+            Theme.FillRounded(g, Theme.Surface, box, 12 * dpi);
+            Theme.StrokeRounded(g, Theme.Border, 1f * dpi, box, 12 * dpi);
 
             if (!string.IsNullOrEmpty(_title))
             {
-                var header = Rectangle.Round(new RectangleF(18 * dpi, 12 * dpi, Width - 36 * dpi, 22 * dpi));
-                TextRenderer.DrawText(g, "// " + _title, Theme.MonoSmall, header, Theme.Muted,
-                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                var header = Rectangle.Round(new RectangleF(20 * dpi, 14 * dpi, Width - 40 * dpi, 24 * dpi));
+                TextRenderer.DrawText(g, Capitalize(_title), Theme.BodyBold, header, Theme.Text,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
             }
         }
     }
