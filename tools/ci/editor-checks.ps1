@@ -22,6 +22,7 @@ if ($process.ExitCode -ne 0) {
 }
 
 if ($info.embedded -ne 'True') { throw "Clipora's window was not embedded" }
+if ($info.fits -ne 'True') { throw "Clipora's window kept a frame or does not cover the page" }
 if ([int]$info.added -lt 1) { throw "the recording did not reach Clipora" }
 if ($info.released -ne 'True') { throw "Clipora's window was not given back" }
 Write-Host "editor checks OK"

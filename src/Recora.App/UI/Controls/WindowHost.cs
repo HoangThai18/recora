@@ -30,6 +30,7 @@ namespace Recora.App.UI.Controls
         private const int SwRestore = 9;
         private const int SwShow = 5;
 
+        private readonly Timer _watch = new Timer { Interval = 300 };
         private IntPtr _child;
         private long _style;
         private long _exStyle;
@@ -37,6 +38,29 @@ namespace Recora.App.UI.Controls
         public WindowHost()
         {
             BackColor = Theme.Background;
+
+            // The guest's own window code re-applies its frame and size now and then (winit restores its styles on
+            // focus and DPI changes); a light watch puts them back while the page is on screen.
+            _watch.Tick += (_, _) => Enforce();
+            VisibleChanged += (_, _) => _watch.Enabled = Visible && Child != IntPtr.Zero;
+        }
+
+        /// <summary>The held window has no frame and covers exactly this panel (checked by the selftest).</summary>
+        public bool Fits
+        {
+            get
+            {
+                var window = Child;
+                if (window == IntPtr.Zero || !GetWindowRect(window, out var rect))
+                {
+                    return false;
+                }
+
+                var style = GetWindowLongPtr(window, GwlStyle).ToInt64();
+                var screen = RectangleToScreen(ClientRectangle);
+                return (style & WsCaption) != WsCaption && (style & WsThickFrame) == 0 && (style & WsChild) != 0
+                    && rect.Left == screen.Left && rect.Top == screen.Top && rect.Right == screen.Right && rect.Bottom == screen.Bottom;
+            }
         }
 
         public IntPtr Child => _child != IntPtr.Zero && IsWindow(_child) ? _child : IntPtr.Zero;
@@ -57,7 +81,41 @@ namespace Recora.App.UI.Controls
             SetParent(window, Handle);
             Fit(SwpFrameChanged | SwpShowWindow);
             ShowWindow(window, SwShow);
+            _watch.Enabled = Visible;
             Log.Info($"embedded window 0x{window.ToInt64():x} into 0x{Handle.ToInt64():x}");
+        }
+
+        /// <summary>Puts the frame-less child style, the parent and the size back if the guest changed any of them.</summary>
+        public void Enforce()
+        {
+            var window = Child;
+            if (window == IntPtr.Zero)
+            {
+                _watch.Enabled = false;
+                return;
+            }
+
+            var style = GetWindowLongPtr(window, GwlStyle).ToInt64();
+            var unwanted = WsPopup | WsCaption | WsThickFrame | WsSysMenu | WsMinimizeBox | WsMaximizeBox;
+            var flags = 0u;
+            if ((style & unwanted) != 0 || (style & WsChild) == 0)
+            {
+                SetWindowLongPtr(window, GwlStyle, new IntPtr((style & ~unwanted) | WsChild));
+                flags |= SwpFrameChanged;
+            }
+
+            if (GetParent(window) != Handle)
+            {
+                SetParent(window, Handle);
+                flags |= SwpFrameChanged;
+            }
+
+            var screen = RectangleToScreen(ClientRectangle);
+            if (flags != 0 || !GetWindowRect(window, out var rect)
+                || rect.Left != screen.Left || rect.Top != screen.Top || rect.Right != screen.Right || rect.Bottom != screen.Bottom)
+            {
+                Fit(flags);
+            }
         }
 
         /// <summary>Back to a normal window of its own, where it was on screen, so nothing open in it is lost.</summary>
@@ -65,6 +123,7 @@ namespace Recora.App.UI.Controls
         {
             var window = Child;
             _child = IntPtr.Zero;
+            _watch.Enabled = false;
             if (window == IntPtr.Zero)
             {
                 return;
@@ -115,8 +174,30 @@ namespace Recora.App.UI.Controls
             }
         }
 
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _watch.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr SetParent(IntPtr child, IntPtr parent);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr window, out NativeRect rect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetParent(IntPtr window);

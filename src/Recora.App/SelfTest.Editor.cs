@@ -90,7 +90,10 @@ namespace Recora.App
                     var shot = session.Send($"{{\"id\":99,\"method\":\"ui.screenshot\",\"params\":{{\"path\":{CliporaControl.Json(own)}}}}}");
                     Note("clipora_screenshot", shot.Ok ? own : "failed: " + shot.Error);
 
-                    Pump(TimeSpan.FromSeconds(3));
+                    // Long enough for the guest to re-apply its own frame once; the host's watch must undo it.
+                    Pump(TimeSpan.FromSeconds(4));
+                    Note("fits", host.Fits);
+                    ok &= host.Fits;
                     var picture = Path.Combine(directory, "editor-embedded.png");
                     var area = form.RectangleToScreen(form.ClientRectangle);
                     using (var bitmap = new Bitmap(area.Width, area.Height))

@@ -10,7 +10,7 @@ size: M
 ---
 
 ## Goal
-Recora tìm Clipora đã cài hoặc tải bản portable mới nhất từ Release `clipora-*`, kiểm SHA256SUMS, giải nén vào %LocalAppData%\\Recora\\Clipora, chạy với `--control` và gửi lệnh.
+Recora tìm Clipora đã cài hoặc tải bản portable mới nhất từ Release `clipora-*`, kiểm SHA256SUMS, giải nén vào %LocalAppData%\Recora\Clipora, chạy với `--control` và gửi lệnh.
 
 ## Sub-tasks
 - [x] `CliporaRelease.Pick`, `Sha256Sums.Find`, `CliporaControl` (Core, có test)
