@@ -4,6 +4,9 @@
 FFMPEG_VERSION=8.1.3
 FFMPEG_SHA256=7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3
 
+# A published Recora release whose sources archive holds the same tarball: the download fallback in build.sh.
+FALLBACK_RELEASE=recora-0.1.1
+
 # Capture sources: lavfi wraps ddagrab/gfxcapture so the video input opens before the audio pipe.
 INDEVS="lavfi gdigrab dshow"
 
