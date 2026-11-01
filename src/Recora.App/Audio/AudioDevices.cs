@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 using Recora.App.Logging;
+using Recora.Core.Audio;
 
 namespace Recora.App.Audio
 {
@@ -48,6 +49,63 @@ namespace Recora.App.Audio
             {
                 Log.Warn($"audio endpoints unavailable: {error.Message}");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// The microphone to record (see <see cref="MicrophonePick"/>): a Bluetooth headset's call microphone only when
+        /// chosen or when it is the only one; <c>HandsFree</c> says the headset will switch to call mode.
+        /// </summary>
+        public static (MMDevice? Device, bool HandsFree) ResolveMicrophone(string chosenId)
+        {
+            try
+            {
+                using (var enumerator = new MMDeviceEnumerator())
+                {
+                    var active = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active).ToList();
+                    var defaultId = enumerator.HasDefaultAudioEndpoint(DataFlow.Capture, Role.Communications)
+                        ? enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications).ID
+                        : null;
+                    var choice = MicrophonePick.Pick(active.Select(d => new MicrophoneCandidate(d.ID, IsHandsFree(d))).ToList(), chosenId ?? string.Empty, defaultId);
+                    if (choice == null)
+                    {
+                        return (null, false);
+                    }
+
+                    var device = active.First(d => d.ID == choice.Id);
+                    if (!string.Equals(device.ID, defaultId, StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(chosenId))
+                    {
+                        Log.Info($"default microphone is a Bluetooth hands-free one; recording {device.FriendlyName} instead");
+                    }
+
+                    return (device, choice.HandsFreeWarning);
+                }
+            }
+            catch (COMException error)
+            {
+                Log.Warn($"audio endpoints unavailable: {error.Message}");
+                return (null, false);
+            }
+        }
+
+        /// <summary>A Bluetooth headset's call (hands-free) endpoint: opening it drops the headset out of stereo.</summary>
+        public static bool IsHandsFree(MMDevice device)
+        {
+            try
+            {
+                var enumeratorName = new PropertyKey(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 24);
+                if (device.Properties.Contains(enumeratorName)
+                    && string.Equals(device.Properties[enumeratorName].Value as string, "BTHHFENUM", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                var name = device.FriendlyName ?? string.Empty;
+                return name.IndexOf("Hands-Free", StringComparison.OrdinalIgnoreCase) >= 0 || name.IndexOf("Hands Free", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+            catch (Exception error) when (error is COMException || error is InvalidCastException || error is ArgumentException)
+            {
+                return false;
             }
         }
 

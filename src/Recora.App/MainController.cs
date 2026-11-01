@@ -83,6 +83,7 @@ namespace Recora.App
         private AboutPage? _about;
         private AvailableUpdate? _update;
         private bool _updating;
+        private bool _handsFreeWarned;
 
         public MainController(MainForm form, AppSettings settings, string settingsPath)
         {
@@ -403,7 +404,7 @@ namespace Recora.App
                 return;
             }
 
-            var microphone = AudioDevices.Resolve(DataFlow.Capture, _settings.MicrophoneDevice);
+            var microphone = AudioDevices.ResolveMicrophone(_settings.MicrophoneDevice).Device;
             var speaker = AudioDevices.Resolve(DataFlow.Render, _settings.SystemAudioDevice);
             if (microphone == null || speaker == null)
             {
@@ -1240,7 +1241,22 @@ namespace Recora.App
 
         private WasapiSource? OpenSource(DataFlow flow, string deviceId, string what, List<WasapiSource> into)
         {
-            var device = AudioDevices.Resolve(flow, deviceId);
+            var device = flow == DataFlow.Render ? AudioDevices.Resolve(flow, deviceId) : null;
+            if (flow == DataFlow.Capture)
+            {
+                var microphone = AudioDevices.ResolveMicrophone(deviceId);
+                device = microphone.Device;
+                if (microphone.HandsFree && device != null && !_handsFreeWarned)
+                {
+                    _handsFreeWarned = true;
+                    var headset = device.FriendlyName;
+                    _form.BeginInvoke(new Action(() => _tray.Notify(
+                        "Tai nghe Bluetooth chuyển sang chế độ gọi",
+                        $"Ghi micro của {headset} làm tai nghe chuyển sang chế độ gọi: tiếng game nhỏ, rè hoặc mất. Chọn micro khác ở trang Âm thanh, hoặc tắt Ghi micro.",
+                        ToolTipIcon.Warning)));
+                }
+            }
+
             if (device == null)
             {
                 Log.Warn($"no {what} device; recording without it");
@@ -1944,7 +1960,7 @@ namespace Recora.App
             {
                 _meterRetryAt = DateTime.UtcNow.AddSeconds(3);
                 _speakerMeter = _settings.SystemAudio ? AudioDevices.Resolve(DataFlow.Render, _settings.SystemAudioDevice) : null;
-                _microphoneMeter = _settings.Microphone ? AudioDevices.Resolve(DataFlow.Capture, _settings.MicrophoneDevice) : null;
+                _microphoneMeter = _settings.Microphone ? AudioDevices.ResolveMicrophone(_settings.MicrophoneDevice).Device : null;
             }
 
             try

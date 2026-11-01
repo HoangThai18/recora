@@ -127,7 +127,12 @@ namespace Recora.App.Audio
 
         public static WasapiSource Loopback(MMDevice device) => new WasapiSource(new WasapiLoopbackCapture(device), device.FriendlyName);
 
-        public static WasapiSource Microphone(MMDevice device) => new WasapiSource(new WasapiCapture(device, true, 20), device.FriendlyName);
+        public static WasapiSource Microphone(MMDevice device)
+        {
+            // Before the stream exists: Windows decides on ducking when the stream opens.
+            Ducking.OptOut(device.ID);
+            return new WasapiSource(new WasapiCapture(device, true, 20), device.FriendlyName);
+        }
 
         public void Start()
         {
