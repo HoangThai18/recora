@@ -21,7 +21,6 @@ namespace Recora.App.Editor
     /// </summary>
     internal static class CliporaRuntime
     {
-        private const int TimeoutMilliseconds = 30000;
 
         public static string ManagedRoot =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Recora", "Clipora");
@@ -61,9 +60,9 @@ namespace Recora.App.Editor
         public static CliporaInstall Download(Action<long, long> progress, CancellationToken cancel)
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-            var package = CliporaRelease.Pick(GetText(CliporaRelease.ReleasesApi))
+            var package = CliporaRelease.Pick(Platform.Downloads.GetText(CliporaRelease.ReleasesApi))
                 ?? throw new RecoraException("clipora_unavailable", "no published Clipora release with a Windows portable zip");
-            var expected = Sha256Sums.Find(GetText(package.SumsUrl), package.ZipName)
+            var expected = Sha256Sums.Find(Platform.Downloads.GetText(package.SumsUrl), package.ZipName)
                 ?? throw new RecoraException("clipora_unavailable", "SHA256SUMS has no line for " + package.ZipName);
 
             Directory.CreateDirectory(ManagedRoot);
@@ -72,7 +71,7 @@ namespace Recora.App.Editor
             var target = Path.Combine(ManagedRoot, package.Tag);
             try
             {
-                var actual = DownloadFile(package.ZipUrl, zip, package.ZipBytes, progress, cancel);
+                var actual = Platform.Downloads.File(package.ZipUrl, zip, package.ZipBytes, progress, cancel);
                 if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
                 {
                     throw new RecoraException("clipora_corrupt", $"{package.ZipName}: sha256 {actual}, expected {expected}");
@@ -99,53 +98,6 @@ namespace Recora.App.Editor
             var exe = Directory.GetFiles(target, "clipora.exe", SearchOption.AllDirectories).FirstOrDefault()
                 ?? throw new RecoraException("clipora_corrupt", "the zip has no clipora.exe");
             return new CliporaInstall(exe, package.Tag);
-        }
-
-        private static string GetText(string url)
-        {
-            var request = Request(url);
-            using (var response = request.GetResponse())
-            using (var reader = new StreamReader(response.GetResponseStream()!, Encoding.UTF8))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
-        /// <summary>Streams to disk and hashes on the way, so a 70 MB file is never held in memory.</summary>
-        private static string DownloadFile(string url, string path, long expectedBytes, Action<long, long> progress, CancellationToken cancel)
-        {
-            var request = Request(url);
-            using (var response = request.GetResponse())
-            using (var input = response.GetResponseStream()!)
-            using (var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
-            using (var sha = SHA256.Create())
-            {
-                var total = response.ContentLength > 0 ? response.ContentLength : expectedBytes;
-                var buffer = new byte[1 << 16];
-                long done = 0;
-                int read;
-                while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
-                {
-                    cancel.ThrowIfCancellationRequested();
-                    output.Write(buffer, 0, read);
-                    sha.TransformBlock(buffer, 0, read, null, 0);
-                    done += read;
-                    progress(done, total);
-                }
-
-                sha.TransformFinalBlock(new byte[0], 0, 0);
-                return string.Concat(sha.Hash.Select(b => b.ToString("x2")));
-            }
-        }
-
-        private static HttpWebRequest Request(string url)
-        {
-            var request = (HttpWebRequest)WebRequest.Create(url);
-            request.UserAgent = "Recora/" + Program.Version;
-            request.Timeout = TimeoutMilliseconds;
-            request.ReadWriteTimeout = TimeoutMilliseconds;
-            request.AllowAutoRedirect = true;
-            return request;
         }
 
         private static void DeleteFolder(string folder)
