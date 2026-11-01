@@ -1,3 +1,4 @@
+using Recora.Core.Audio;
 using Recora.Core.Ffmpeg;
 using System.IO;
 using Recora.Core.Encoding;
@@ -84,6 +85,20 @@ namespace Recora.Core.Tests.Settings
         }
 
         [Fact]
+        public void Load_MicProcessing_MissingOrPartial_GetsSafeDefaults()
+        {
+            File.WriteAllText(SettingsPath, "{\"micProcessing\":{\"gainDb\":50}}");
+            var partial = SettingsStore.Load(SettingsPath).MicProcessing;
+
+            Assert.Equal(MicProcessingSettings.MaxGainDb, partial.GainDb);
+            Assert.True(partial.Limiter);
+            Assert.Equal(-45f, partial.GateThresholdDb);
+
+            File.WriteAllText(SettingsPath, "{\"micProcessing\":null}");
+            Assert.True(SettingsStore.Load(SettingsPath).MicProcessing.Limiter);
+        }
+
+        [Fact]
         public void Load_SaverQuality_RoundTrips()
         {
             SettingsStore.Save(SettingsPath, new AppSettings { Quality = QualityPreset.Saver });
@@ -127,6 +142,7 @@ namespace Recora.Core.Tests.Settings
                 WebcamOverlay = true,
                 ClickHighlight = true,
                 MaxGigabytesPerHour = 2,
+                MicProcessing = new MicProcessingSettings { GainDb = 6, HighPass = true, NoiseGate = true, GateThresholdDb = -50, Compressor = true, Limiter = false },
                 EncoderProbe = new EncoderProbeCache { Fingerprint = "10de:2684|8.1.3", Working = new[] { "h264_nvenc" } },
             };
 
@@ -153,6 +169,10 @@ namespace Recora.Core.Tests.Settings
             Assert.False(loaded.ScreenshotSound);
             Assert.True(loaded.WebcamOverlay && loaded.ClickHighlight);
             Assert.Equal(2, loaded.MaxGigabytesPerHour);
+            Assert.Equal(6f, loaded.MicProcessing.GainDb);
+            Assert.True(loaded.MicProcessing.HighPass && loaded.MicProcessing.NoiseGate && loaded.MicProcessing.Compressor);
+            Assert.Equal(-50f, loaded.MicProcessing.GateThresholdDb);
+            Assert.False(loaded.MicProcessing.Limiter);
             Assert.Equal(new[] { "h264_nvenc" }, loaded.EncoderProbe!.Working);
             Assert.False(File.Exists(SettingsPath + ".tmp"));
         }
