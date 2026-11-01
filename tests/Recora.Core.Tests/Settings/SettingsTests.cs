@@ -98,6 +98,19 @@ namespace Recora.Core.Tests.Settings
             Assert.True(SettingsStore.Load(SettingsPath).MicProcessing.Limiter);
         }
 
+        [Theory]
+        [InlineData("{\"replaySeconds\":45}", 30)]
+        [InlineData("{\"replaySeconds\":300}", 300)]
+        [InlineData("{}", 30)]
+        public void Load_ReplayLength_OnlyOfferedValuesSurvive(string json, int expected)
+        {
+            File.WriteAllText(SettingsPath, json);
+
+            var settings = SettingsStore.Load(SettingsPath);
+            Assert.Equal(expected, settings.ReplaySeconds);
+            Assert.False(settings.ReplayEnabled);
+        }
+
         [Fact]
         public void Load_SaverQuality_RoundTrips()
         {
@@ -142,6 +155,9 @@ namespace Recora.Core.Tests.Settings
                 WebcamOverlay = true,
                 ClickHighlight = true,
                 MaxGigabytesPerHour = 2,
+                ReplayEnabled = true,
+                ReplaySeconds = 120,
+                HotkeyReplay = "Ctrl+F9",
                 MicProcessing = new MicProcessingSettings { GainDb = 6, HighPass = true, NoiseGate = true, GateThresholdDb = -50, Compressor = true, Limiter = false },
                 EncoderProbe = new EncoderProbeCache { Fingerprint = "10de:2684|8.1.3", Working = new[] { "h264_nvenc" } },
             };
@@ -169,6 +185,9 @@ namespace Recora.Core.Tests.Settings
             Assert.False(loaded.ScreenshotSound);
             Assert.True(loaded.WebcamOverlay && loaded.ClickHighlight);
             Assert.Equal(2, loaded.MaxGigabytesPerHour);
+            Assert.True(loaded.ReplayEnabled);
+            Assert.Equal(120, loaded.ReplaySeconds);
+            Assert.Equal("Ctrl+F9", loaded.HotkeyReplay);
             Assert.Equal(6f, loaded.MicProcessing.GainDb);
             Assert.True(loaded.MicProcessing.HighPass && loaded.MicProcessing.NoiseGate && loaded.MicProcessing.Compressor);
             Assert.Equal(-50f, loaded.MicProcessing.GateThresholdDb);
@@ -219,6 +238,8 @@ namespace Recora.Core.Tests.Settings
             Assert.Equal("F12", Hotkey.Record.ToString());
             Assert.Equal("Shift+F12", Hotkey.Pause.ToString());
             Assert.Equal("F11", Hotkey.Screenshot.ToString());
+            Assert.Equal("Alt+F10", Hotkey.SaveReplay.ToString());
+            Assert.Equal(Hotkey.SaveReplay.ToString(), new AppSettings().HotkeyReplay);
         }
     }
 }

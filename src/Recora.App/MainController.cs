@@ -16,6 +16,7 @@ using Recora.App.Recording;
 using Recora.App.UI;
 using Recora.App.UI.Controls;
 using Recora.Core;
+using Recora.Core.Audio;
 using Recora.Core.Capture;
 using Recora.Core.Encoding;
 using Recora.Core.Ffmpeg;
@@ -43,6 +44,13 @@ namespace Recora.App
         private readonly Timer _saveTimer;
         private readonly Timer _liveTimer;
         private readonly List<WasapiSource> _audio = new List<WasapiSource>();
+        private readonly List<WasapiSource> _replayAudio = new List<WasapiSource>();
+        private readonly Timer _replayRestart;
+        private ReplayBuffer? _replay;
+        private bool _replayBusy;
+        private bool _replaySaving;
+        private string? _replaySignature;
+        private DateTime _replayRetryAt;
         private CaptureEnvironment? _environment;
         private EncoderMemory? _memory;
         private Recorder? _recorder;
@@ -96,6 +104,18 @@ namespace Recora.App
             _liveTimer = new Timer { Interval = 100 };
             _liveTimer.Tick += (_, _) => LiveTick();
 
+            // Settings that change what the replay buffer captures restart it once the user stops clicking.
+            _replayRestart = new Timer { Interval = 1500 };
+            _replayRestart.Tick += async (_, _) =>
+            {
+                _replayRestart.Stop();
+                if (_replay != null && _replay.IsRunning && _replaySignature != ReplaySignature())
+                {
+                    await StopReplay();
+                    ResumeReplay();
+                }
+            };
+
             _form.RecordClicked += (_, _) => ToggleRecord();
             _form.PauseClicked += (_, _) => TogglePause();
             _form.ScreenshotClicked += (_, _) => Screenshot();
@@ -120,6 +140,31 @@ namespace Recora.App
                 _settings.AudioFormat = _form.Home.AudioFormats.Value;
                 SettingsChanged();
             };
+            _form.Home.Replay.CheckedChanged += async (_, _) =>
+            {
+                if (_syncingHome)
+                {
+                    return;
+                }
+
+                _settings.ReplayEnabled = _form.Home.Replay.Checked;
+                SettingsChanged();
+                if (_settings.ReplayEnabled)
+                {
+                    ResumeReplay();
+                }
+                else
+                {
+                    await StopReplay();
+                    ShowStatus();
+                }
+            };
+            _form.Home.ReplayLength.SelectedChanged += (_, _) =>
+            {
+                _settings.ReplaySeconds = _form.Home.ReplayLength.Value;
+                SettingsChanged();
+            };
+            _form.Home.SaveReplay.Click += (_, _) => SaveReplay();
             _form.SelectMode(ToChoice(_settings.Mode));
         }
 
@@ -161,6 +206,7 @@ namespace Recora.App
 
             _memory = new EncoderMemory(_settings, _environment.Fingerprint);
             _recorder = new Recorder(_environment, _memory);
+            _replay = new ReplayBuffer(_environment, _memory);
             _recorder.Changed += status =>
             {
                 if (!_form.IsDisposed && _form.IsHandleCreated)
@@ -178,9 +224,11 @@ namespace Recora.App
 
             // Leftovers are listed before recording can start, so a new session's folder is never taken for one.
             var leftovers = RecoveryService.Scan(OutputFolder);
+            ReplayBuffer.CleanStale(OutputFolder);
             _form.Record.Enabled = true;
             ShowStatus();
             SaveSettings();
+            ResumeReplay();
 
             CheckForUpdateLater();
             var ffmpeg = _environment.FfmpegPath;
@@ -209,6 +257,9 @@ namespace Recora.App
             _disposed = true;
             CloseFrame();
             CloseExtras();
+            _replayRestart.Dispose();
+            _replay?.Stop();
+            CloseAudio(_replayAudio);
             _saveTimer.Dispose();
             _liveTimer.Dispose();
             _timer.Dispose();
@@ -247,7 +298,9 @@ namespace Recora.App
             screenshots.Changed += (_, _) => SettingsChanged();
             _form.SetPage(PageKind.Screenshot, screenshots);
 
-            _form.SetPage(PageKind.Library, new LibraryPage(() => LibraryFiles.Scan(OutputFolder)));
+            var library = new LibraryPage(() => LibraryFiles.Scan(OutputFolder));
+            library.TrimRequested += async (_, item) => await Trim(library, item);
+            _form.SetPage(PageKind.Library, library);
             var about = new AboutPage(Program.Version, environment.FfmpegVersion);
             about.CheckUpdate.Click += async (_, _) =>
             {
@@ -266,7 +319,95 @@ namespace Recora.App
         {
             var page = new AudioPage(_settings, AudioDevices.Speakers(), AudioDevices.Microphones());
             page.Changed += (_, _) => SettingsChanged();
+            page.TestSpeaker.Click += async (_, _) => await TestSpeaker(page);
+            page.TestMicrophone.Click += async (_, _) => await TestMicrophone(page);
             return page;
+        }
+
+        /// <summary>A chime on the chosen speakers, left then right.</summary>
+        private async Task TestSpeaker(AudioPage page)
+        {
+            if (Busy)
+            {
+                page.ShowTest("Recora đang ghi: thử loa sau khi dừng, kẻo tiếng thử lọt vào video.", running: false);
+                return;
+            }
+
+            var speaker = AudioDevices.Resolve(DataFlow.Render, _settings.SystemAudioDevice);
+            if (speaker == null)
+            {
+                page.ShowTest("Không tìm thấy loa hay tai nghe nào.", running: false);
+                return;
+            }
+
+            page.ShowTest($"Đang phát trên {speaker.FriendlyName}: bên trái, rồi bên phải…", running: true);
+            try
+            {
+                await Task.Run(() => AudioCheck.Play(speaker, AudioCheck.Chime(), System.Threading.CancellationToken.None));
+                page.ShowTest("Nghe tiếng ở bên trái rồi bên phải là đúng. Không nghe thấy: chọn lại thiết bị phát ở trên.", running: false);
+            }
+            catch (Exception error) when (error is COMException || error is InvalidOperationException || error is ArgumentException)
+            {
+                Log.Error("speaker test failed", error);
+                page.ShowTest("Không phát được trên thiết bị này (đang bị app khác giữ hoặc đã rút).", running: false);
+            }
+            finally
+            {
+                speaker.Dispose();
+            }
+        }
+
+        /// <summary>Five seconds of the chosen microphone, played back after the same chain a recording uses.</summary>
+        private async Task TestMicrophone(AudioPage page)
+        {
+            if (Busy)
+            {
+                page.ShowTest("Recora đang ghi: thử micro sau khi dừng.", running: false);
+                return;
+            }
+
+            var microphone = AudioDevices.Resolve(DataFlow.Capture, _settings.MicrophoneDevice);
+            var speaker = AudioDevices.Resolve(DataFlow.Render, _settings.SystemAudioDevice);
+            if (microphone == null || speaker == null)
+            {
+                microphone?.Dispose();
+                speaker?.Dispose();
+                page.ShowTest(microphone == null ? "Không tìm thấy micro nào." : "Không tìm thấy loa hay tai nghe để phát lại.", running: false);
+                return;
+            }
+
+            page.ShowTest($"Đang thu từ {microphone.FriendlyName}: nói vài câu (5 giây)…", running: true);
+            try
+            {
+                void Level(float peak) => _form.BeginInvoke(new Action(() => page.TestLevel.Push(peak)));
+                var recorded = await Task.Run(() => AudioCheck.RecordMicrophone(microphone, TimeSpan.FromSeconds(5), Level, System.Threading.CancellationToken.None));
+                if (recorded.Length == 0)
+                {
+                    page.ShowTest("Micro không gửi tiếng nào: kiểm tra micro có bị tắt tiếng, hoặc Windows chưa cho phép ứng dụng dùng micro.", running: false);
+                    return;
+                }
+
+                var processed = AudioCheck.Process(recorded, _settings.MicProcessing, _settings.MicrophoneVolume);
+                var peak = MicProcessor.LinearToDb(processed.Select(Math.Abs).Max());
+                page.ShowTest("Đang phát lại đúng tiếng sẽ có trong video…", running: true);
+                await Task.Run(() => AudioCheck.Play(speaker, processed, System.Threading.CancellationToken.None));
+                page.ShowTest(peak < -30
+                    ? $"Tiếng hơi nhỏ (to nhất {peak:0} dB): kéo Tăng âm micro lên, hoặc tăng Âm lượng micro."
+                    : peak > -1.5
+                        ? $"Tiếng chạm trần (to nhất {peak:0} dB): bật Chống rè hoặc giảm Tăng âm."
+                        : $"Ổn: to nhất {peak:0} dB. Có tiếng quạt, bàn phím thì bật Chặn ồn nền rồi thu thử lại.",
+                    running: false);
+            }
+            catch (Exception error) when (error is COMException || error is InvalidOperationException || error is ArgumentException)
+            {
+                Log.Error("microphone test failed", error);
+                page.ShowTest("Không mở được micro hoặc loa (đang bị app khác giữ hoặc đã rút).", running: false);
+            }
+            finally
+            {
+                microphone.Dispose();
+                speaker.Dispose();
+            }
         }
 
         /// <summary>One quiet check a minute after start; a newer release shows as a tray note linking to the download page.</summary>
@@ -292,6 +433,11 @@ namespace Recora.App
             UpdateDisk();
             RefreshHome();
             ApplyCaptureExclusion();
+            if (_replay != null && _replay.IsRunning && _replaySignature != ReplaySignature())
+            {
+                _replayRestart.Stop();
+                _replayRestart.Start();
+            }
 
             if (_settings.StartWithWindows != _startWithWindows)
             {
@@ -402,6 +548,9 @@ namespace Recora.App
                 }
 
                 var audioOnly = mode == CaptureModeChoice.AudioOnly;
+                _form.Home.Replay.Checked = _settings.ReplayEnabled;
+                _form.Home.ReplayLength.Value = _settings.ReplaySeconds;
+                ShowReplayState();
                 _form.Home.Display(new HomeModel(
                     title,
                     detail,
@@ -429,6 +578,7 @@ namespace Recora.App
             {
                 QualityPreset.High => "Rất nét",
                 QualityPreset.Small => "Nhẹ",
+                QualityPreset.Saver => "Tiết kiệm",
                 _ => "Cân bằng",
             };
             var scale = _settings.Scale switch
@@ -438,7 +588,13 @@ namespace Recora.App
                 OutputScale.P480 => "480p",
                 _ => "độ phân giải gốc",
             };
-            return new[] { quality, CodecName(_settings.Codec), _settings.Fps + " fps", _settings.Container.ToString().ToUpperInvariant(), scale, _settings.DrawCursor ? "có chuột" : "ẩn chuột" };
+            var pills = new List<string> { quality, CodecName(_settings.Codec), _settings.Fps + " fps", _settings.Container.ToString().ToUpperInvariant(), scale, _settings.DrawCursor ? "có chuột" : "ẩn chuột" };
+            if (_settings.MaxGigabytesPerHour > 0)
+            {
+                pills.Insert(1, $"tối đa {_settings.MaxGigabytesPerHour} GB/giờ");
+            }
+
+            return pills;
         }
 
         private static string CodecName(VideoCodec codec) => codec switch
@@ -492,12 +648,14 @@ namespace Recora.App
                 [HotkeyAction.Record] = _settings.HotkeyRecord,
                 [HotkeyAction.Pause] = _settings.HotkeyPause,
                 [HotkeyAction.Screenshot] = _settings.HotkeyScreenshot,
+                [HotkeyAction.SaveReplay] = _settings.HotkeyReplay,
             };
             var failed = _hotkeys.Apply(keys);
             _form.PageOf<HotkeysPage>(PageKind.Hotkeys)?.ShowConflicts(failed.Select(action => action switch
             {
                 HotkeyAction.Record => nameof(AppSettings.HotkeyRecord),
                 HotkeyAction.Pause => nameof(AppSettings.HotkeyPause),
+                HotkeyAction.SaveReplay => nameof(AppSettings.HotkeyReplay),
                 _ => nameof(AppSettings.HotkeyScreenshot),
             }));
 
@@ -519,6 +677,9 @@ namespace Recora.App
                     break;
                 case HotkeyAction.Screenshot:
                     Screenshot();
+                    break;
+                case HotkeyAction.SaveReplay:
+                    SaveReplay();
                     break;
             }
         }
@@ -723,12 +884,18 @@ namespace Recora.App
             _preparing = true;
             try
             {
+                // One capture at a time: the replay buffer steps aside for the recording and comes back after it.
+                await StopReplay();
                 await PrepareAndStart(recorder);
             }
             finally
             {
                 _preparing = false;
                 _countdown = null;
+                if (!Busy)
+                {
+                    ResumeReplay();
+                }
             }
         }
 
@@ -812,7 +979,7 @@ namespace Recora.App
             }
 
             // WASAPI objects are opened off the UI thread: NAudio's capture thread then shares the apartment.
-            var tracks = await Task.Run(() => OpenAudio(forceMixed: audioOnly != null));
+            var tracks = await Task.Run(() => OpenAudio(_audio, forceMixed: audioOnly != null));
             if (audioOnly != null && tracks.Count == 0)
             {
                 CloseAudio();
@@ -821,18 +988,7 @@ namespace Recora.App
             }
 
             _activeAudioOnly = audioOnly != null;
-            var request = new RecordingRequest(
-                source,
-                _settings.Codec,
-                Preferred(),
-                _settings.Quality,
-                _settings.Fps,
-                _settings.Scale,
-                _settings.DrawCursor,
-                _settings.Container,
-                OutputFolder,
-                tracks,
-                audioOnly);
+            var request = Request(source, tracks, audioOnly);
 
             // Click rings and the floating webcam live on the screen, so they only reach the video in screen and
             // region captures; a window capture records that window alone.
@@ -870,6 +1026,7 @@ namespace Recora.App
             CloseAudio();
             CloseFrame();
             CloseExtras();
+            ResumeReplay();
             if (saved == null)
             {
                 return;
@@ -880,12 +1037,27 @@ namespace Recora.App
             _tray.Notify("Đã lưu video", $"{Path.GetFileName(saved.Path)} · {LibraryIndex.FormatDuration(saved.Duration)} · {LibraryIndex.FormatBytes(saved.Bytes)}");
         }
 
-        private IReadOnlyList<AudioTrackSpec> OpenAudio(bool forceMixed = false)
+        private RecordingRequest Request(CaptureSource source, IReadOnlyList<AudioTrackSpec> tracks, AudioFormat? audioOnly = null) =>
+            new RecordingRequest(
+                source,
+                _settings.Codec,
+                Preferred(),
+                _settings.Quality,
+                _settings.Fps,
+                _settings.Scale,
+                _settings.DrawCursor,
+                _settings.Container,
+                OutputFolder,
+                tracks,
+                audioOnly,
+                _settings.MaxGigabytesPerHour);
+
+        private IReadOnlyList<AudioTrackSpec> OpenAudio(List<WasapiSource> into, bool forceMixed = false)
         {
             var inputs = new List<(string Name, IAudioInput Input, float Gain)>();
             if (_settings.SystemAudio)
             {
-                var source = OpenSource(DataFlow.Render, _settings.SystemAudioDevice, "tiếng máy");
+                var source = OpenSource(DataFlow.Render, _settings.SystemAudioDevice, "tiếng máy", into);
                 if (source != null)
                 {
                     inputs.Add(("Tiếng máy", source.Input, _settings.SystemVolume));
@@ -894,10 +1066,13 @@ namespace Recora.App
 
             if (_settings.Microphone)
             {
-                var source = OpenSource(DataFlow.Capture, _settings.MicrophoneDevice, "micro");
+                var source = OpenSource(DataFlow.Capture, _settings.MicrophoneDevice, "micro", into);
                 if (source != null)
                 {
-                    inputs.Add(("Micro", source.Input, _settings.MicrophoneVolume));
+                    // The chain runs per track input, so a separate microphone track gets it too.
+                    var processor = new MicProcessor(_settings.MicProcessing, RecordingCommand.AudioSampleRate);
+                    IAudioInput input = processor.IsBypass ? source.Input : new ProcessedInput(source.Input, processor);
+                    inputs.Add(("Micro", input, _settings.MicrophoneVolume));
                 }
             }
 
@@ -914,7 +1089,7 @@ namespace Recora.App
             return new[] { new AudioTrackSpec("Âm thanh", inputs.Select(i => (i.Input, i.Gain)).ToList()) };
         }
 
-        private WasapiSource? OpenSource(DataFlow flow, string deviceId, string what)
+        private WasapiSource? OpenSource(DataFlow flow, string deviceId, string what, List<WasapiSource> into)
         {
             var device = AudioDevices.Resolve(flow, deviceId);
             if (device == null)
@@ -930,9 +1105,9 @@ namespace Recora.App
                 source.Lost += _ => _form.BeginInvoke(new Action(() =>
                     _tray.Notify("Mất " + what, $"{name} vừa bị rút hoặc tắt. Video vẫn ghi tiếp, phần sau không có {what}.", ToolTipIcon.Warning)));
                 source.Start();
-                lock (_audio)
+                lock (into)
                 {
-                    _audio.Add(source);
+                    into.Add(source);
                 }
 
                 return source;
@@ -998,13 +1173,15 @@ namespace Recora.App
             _frame = null;
         }
 
-        private void CloseAudio()
+        private void CloseAudio() => CloseAudio(_audio);
+
+        private static void CloseAudio(List<WasapiSource> list)
         {
             WasapiSource[] sources;
-            lock (_audio)
+            lock (list)
             {
-                sources = _audio.ToArray();
-                _audio.Clear();
+                sources = list.ToArray();
+                list.Clear();
             }
 
             foreach (var source in sources)
@@ -1016,6 +1193,254 @@ namespace Recora.App
                 catch (Exception error) when (error is COMException || error is InvalidOperationException)
                 {
                     Log.Warn("audio source close failed: " + error.Message);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Starts the replay buffer when it is wanted and the screen is free: at launch, after a recording, after a
+        /// failed one, and when the user switches it on. Captures the chosen screen whatever the mode.
+        /// </summary>
+        private async void ResumeReplay()
+        {
+            var replay = _replay;
+            if (replay == null || _disposed || _exiting || !_settings.ReplayEnabled || replay.IsRunning || _replayBusy || Busy || _preparing)
+            {
+                return;
+            }
+
+            _replayBusy = true;
+            try
+            {
+                var source = new MonitorSource(SelectedMonitor().Target);
+                var tracks = await Task.Run(() => OpenAudio(_replayAudio));
+                var request = Request(source, tracks);
+                var seconds = _settings.ReplaySeconds;
+                _replaySignature = ReplaySignature();
+                await Task.Run(() => replay.Start(request, seconds));
+                if (_memory != null && _memory.Dirty)
+                {
+                    SaveSettings();
+                }
+            }
+            catch (Exception error) when (error is RecoraException || error is IOException || error is UnauthorizedAccessException)
+            {
+                Log.Error("replay buffer failed to start", error);
+                CloseAudio(_replayAudio);
+                _replayRetryAt = DateTime.UtcNow.AddSeconds(30);
+                _tray.Notify("Không giữ được khoảnh khắc", Explain(error is RecoraException known ? known.Code : "unexpected"), ToolTipIcon.Warning);
+            }
+            finally
+            {
+                _replayBusy = false;
+            }
+
+            // F12 may have been pressed while the buffer was opening: the recording wins.
+            if (Busy || _preparing || !_settings.ReplayEnabled)
+            {
+                await StopReplay();
+            }
+
+            ShowStatus();
+            ShowReplayState();
+        }
+
+        private async Task StopReplay()
+        {
+            var replay = _replay;
+            if (replay == null)
+            {
+                return;
+            }
+
+            // A start or a save in progress finishes first; stopping under it would delete the chunks it reads.
+            for (var i = 0; i < 150 && (_replayBusy || _replaySaving); i++)
+            {
+                await Task.Delay(100);
+            }
+
+            _replayRestart.Stop();
+            if (replay.IsRunning || replay.HasDied)
+            {
+                _replayBusy = true;
+                try
+                {
+                    await Task.Run(() => replay.Stop());
+                }
+                finally
+                {
+                    _replayBusy = false;
+                }
+            }
+
+            CloseAudio(_replayAudio);
+            ShowReplayState();
+        }
+
+        /// <summary>Alt+F10: the last N seconds become a video in the library; the buffer keeps running.</summary>
+        private async void SaveReplay()
+        {
+            var replay = _replay;
+            if (replay == null)
+            {
+                _tray.Notify("Recora chưa sẵn sàng", "Recora đang kiểm tra GPU và bộ mã hoá, thử lại sau vài giây.");
+                return;
+            }
+
+            if (!replay.IsRunning)
+            {
+                if (Busy)
+                {
+                    _tray.Notify("Đang ghi", $"Recora đang ghi cả màn hình: bấm {_settings.HotkeyRecord} để dừng và lưu.");
+                }
+                else
+                {
+                    _tray.Notify("Lưu khoảnh khắc đang tắt", "Bật \"Giữ sẵn khoảnh khắc vừa qua\" ở Trang chủ, Recora sẽ giữ sẵn các giây vừa qua để lưu khi cần.");
+                }
+
+                return;
+            }
+
+            if (_replaySaving)
+            {
+                return;
+            }
+
+            _replaySaving = true;
+            ShowReplayState();
+            try
+            {
+                var folder = OutputFolder;
+                var container = _settings.Container;
+                var saved = await Task.Run(() => replay.Save(folder, container));
+                if (saved == null)
+                {
+                    _tray.Notify("Chưa có gì để lưu", "Recora vừa mới bắt đầu giữ khoảnh khắc, đợi vài giây rồi bấm lại.");
+                    return;
+                }
+
+                _lastSaved = saved;
+                _form.PageOf<LibraryPage>(PageKind.Library)?.Reload();
+                _tray.Notify("Đã lưu khoảnh khắc", $"{Path.GetFileName(saved.Path)} · {LibraryIndex.FormatDuration(saved.Duration)} · {LibraryIndex.FormatBytes(saved.Bytes)}");
+            }
+            catch (Exception error) when (error is RecoraException || error is IOException || error is UnauthorizedAccessException)
+            {
+                Log.Error("replay save failed", error);
+                _tray.Notify("Không lưu được khoảnh khắc", Explain(error is RecoraException known ? known.Code : "unexpected"), ToolTipIcon.Warning);
+            }
+            finally
+            {
+                _replaySaving = false;
+                ShowReplayState();
+                ShowStatus();
+            }
+        }
+
+        /// <summary>Once a second: restart a buffer whose FFmpeg died, stop it when the disk fills up.</summary>
+        private async void WatchReplay()
+        {
+            var replay = _replay;
+            if (replay == null || _replayBusy || _replaySaving)
+            {
+                return;
+            }
+
+            if (replay.IsRunning)
+            {
+                var free = Finalizer.FreeBytes(OutputFolder);
+                if (free.HasValue && DiskGuard.ShouldStop(free.Value))
+                {
+                    await StopReplay();
+                    _tray.Notify("Ổ đĩa sắp đầy", "Còn dưới 500 MB trống nên Recora đã ngừng giữ khoảnh khắc.", ToolTipIcon.Warning);
+                    ShowStatus();
+                }
+            }
+            else if (replay.HasDied)
+            {
+                Log.Warn("replay buffer's ffmpeg exited; restarting");
+                await StopReplay();
+                _replayRetryAt = DateTime.UtcNow.AddSeconds(10);
+            }
+            else if (_settings.ReplayEnabled && !Busy && !_preparing && DateTime.UtcNow >= _replayRetryAt && _replayRetryAt != DateTime.MinValue)
+            {
+                _replayRetryAt = DateTime.MinValue;
+                ResumeReplay();
+            }
+
+            ShowReplayState();
+        }
+
+        private void ShowReplayState()
+        {
+            var replay = _replay;
+            var length = ReplayLengthText(_settings.ReplaySeconds);
+            var hint = $"{_settings.HotkeyReplay} (cả khi đang chơi): lưu {length} vừa qua của màn hình đang chọn. {_settings.HotkeyRecord} vẫn ghi thường.";
+            string state;
+            if (replay == null)
+            {
+                state = "> đang kiểm tra máy…";
+            }
+            else if (_replaySaving)
+            {
+                state = "> đang lưu khoảnh khắc…";
+            }
+            else if (replay.IsRunning)
+            {
+                var held = replay.Held;
+                state = $"> đang giữ {(int)held.TotalMinutes}:{held.Seconds:00} / {length} · {replay.EncoderName}";
+            }
+            else if (Busy || _preparing)
+            {
+                state = "> tạm nghỉ trong lúc ghi thường";
+            }
+            else if (_replayBusy)
+            {
+                state = "> đang mở bộ ghi…";
+            }
+            else
+            {
+                state = _settings.ReplayEnabled ? "> chưa chạy được, Recora sẽ thử lại" : "> đang tắt";
+            }
+
+            _form.Home.ShowReplay(hint, state, replay != null && replay.IsRunning && !_replaySaving);
+        }
+
+        /// <summary>Everything that changes what the buffer records; a change restarts it.</summary>
+        private string ReplaySignature() => string.Join("|", new object[]
+        {
+            _settings.MonitorDevice, _settings.Codec, _settings.Encoder, _settings.Quality, _settings.Fps, _settings.Scale,
+            _settings.DrawCursor, _settings.MaxGigabytesPerHour, _settings.SystemAudio, _settings.SystemAudioDevice,
+            _settings.SystemVolume, _settings.Microphone, _settings.MicrophoneDevice, _settings.MicrophoneVolume,
+            _settings.SeparateTracks, _settings.OutputFolder, _settings.ReplaySeconds,
+            _settings.MicProcessing.GainDb, _settings.MicProcessing.HighPass, _settings.MicProcessing.NoiseGate,
+            _settings.MicProcessing.GateThresholdDb, _settings.MicProcessing.Compressor, _settings.MicProcessing.Limiter,
+        });
+
+        private static string ReplayLengthText(int seconds) => seconds < 60 ? seconds + " giây" : seconds / 60 + " phút";
+
+        /// <summary>"Cắt": the length comes from the library index, or from FFmpeg for files Recora did not record.</summary>
+        private async Task Trim(LibraryPage library, LibraryItem item)
+        {
+            var ffmpeg = _environment?.FfmpegPath;
+            if (ffmpeg == null || !File.Exists(item.Path))
+            {
+                library.Reload();
+                return;
+            }
+
+            var duration = item.Duration ?? await Task.Run(() => TrimService.Duration(ffmpeg, item.Path));
+            if (duration == null || duration.Value < TimeSpan.FromSeconds(1.5))
+            {
+                ShowMessage("Không đọc được độ dài của file này, hoặc file quá ngắn để cắt.", MessageBoxIcon.Information);
+                return;
+            }
+
+            using (var dialog = new TrimDialog(ffmpeg, item, duration.Value))
+            {
+                if (dialog.ShowDialog(_form) == DialogResult.OK && dialog.SavedPath != null)
+                {
+                    library.Reload();
+                    library.Select(dialog.SavedPath);
                 }
             }
         }
@@ -1046,6 +1471,12 @@ namespace Recora.App
                 CloseFrame();
                 CloseExtras();
                 _timer.Stop();
+            }
+
+            // A recording that failed mid-way hands the screen back to the replay buffer.
+            if (status.State == SessionState.Failed)
+            {
+                ResumeReplay();
             }
 
             ShowStatus();
@@ -1117,6 +1548,13 @@ namespace Recora.App
                     _form.Status.Details = _lastError ?? string.Empty;
                     break;
                 default:
+                    if (_replay != null && _replay.IsRunning)
+                    {
+                        _form.Status.SetState("Đang giữ khoảnh khắc", Theme.Ok);
+                        _form.Status.Details = $"{_settings.HotkeyReplay} lưu {ReplayLengthText(_settings.ReplaySeconds)} vừa qua · {_settings.HotkeyRecord} ghi thường";
+                        break;
+                    }
+
                     _form.Status.SetState("Sẵn sàng", Theme.Ok);
                     _form.Status.Details = _lastSaved != null
                         ? "Đã lưu " + Path.GetFileName(_lastSaved.Path)
@@ -1138,7 +1576,8 @@ namespace Recora.App
             _form.Pause.IconKind = state == SessionState.Paused ? IconKind.Record : IconKind.Pause;
             _form.Pause.Text = (state == SessionState.Paused ? "Ghi tiếp" : "Tạm dừng") + " (" + _settings.HotkeyPause + ")";
             _form.Text = state == SessionState.Recording ? "Recora · đang ghi " + clock : state == SessionState.Paused ? "Recora · tạm dừng" : "Recora";
-            _tray.Show(state, state == SessionState.Recording ? "Recora · đang ghi " + clock : state == SessionState.Paused ? "Recora · tạm dừng " + clock : "Recora");
+            var idleTip = _replay != null && _replay.IsRunning ? "Recora · đang giữ khoảnh khắc (" + _settings.HotkeyReplay + " để lưu)" : "Recora";
+            _tray.Show(state, state == SessionState.Recording ? "Recora · đang ghi " + clock : state == SessionState.Paused ? "Recora · tạm dừng " + clock : idleTip);
         }
 
         private void LiveTick()
@@ -1147,6 +1586,11 @@ namespace Recora.App
             if (_liveTicks % 50 == 0)
             {
                 UpdateDisk();
+            }
+
+            if (_liveTicks % 10 == 0)
+            {
+                WatchReplay();
             }
 
             var homeVisible = _form.Visible && _form.WindowState != FormWindowState.Minimized && _form.CurrentPage == PageKind.Home;
@@ -1234,6 +1678,8 @@ namespace Recora.App
             "device_unavailable" => "Không mở được webcam: có thể app khác (Zalo, Zoom, trình duyệt) đang dùng nó. Tắt app đó rồi thử lại.",
             "audio_failed" => "Không ghi được âm thanh ở định dạng này. Thử M4A ở trang chủ chế độ Âm thanh.",
             "region_too_small" => "Vùng ghi quá nhỏ, cần ít nhất 160×90 điểm ảnh.",
+            "trim_failed" => "Không cắt được video này. Thử lại, hoặc xem nhật ký ở trang Giới thiệu.",
+            "replay_save_failed" => "Không ghép được khoảnh khắc thành video. Thử lại, hoặc xem nhật ký ở trang Giới thiệu.",
             _ => "Có lỗi không mong muốn. Xem nhật ký ở trang Giới thiệu và gửi kèm khi báo lỗi.",
         };
 
@@ -1370,9 +1816,12 @@ namespace Recora.App
                     return;
                 }
 
+                _exiting = true;
                 await StopRecording(recorder);
             }
 
+            _exiting = true;
+            await StopReplay();
             Exit();
         }
 

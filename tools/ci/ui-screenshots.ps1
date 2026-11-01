@@ -18,20 +18,25 @@ foreach ($scale in @('1', '1.5')) {
         $shots += ,@($scale, $page, $false)
     }
     $shots += ,@($scale, 'Home', $true)
+    $shots += ,@($scale, 'Library', 'trim')
 }
 
 foreach ($shot in $shots) {
     $scale, $page, $recording = $shot
-    $suffix = if ($recording) { '-recording' } else { '' }
+    # A string marks a dialog shot; comparing $true -eq 'trim' would be true in PowerShell.
+    $dialog = if ($recording -is [string]) { $recording } else { $null }
+    if ($dialog) { $recording = $false }
+    $suffix = if ($recording) { '-recording' } elseif ($dialog) { "-$dialog" } else { '' }
     $file = Join-Path $out ("ui-{0}{1}-{2}.png" -f $page.ToLower(), $suffix, $scale.Replace('.', '_'))
     $arguments = @('--ui-screenshot', "`"$file`"", '--ui-scale', $scale, '--page', $page)
     if (Test-Path $library) { $arguments += @('--library', "`"$library`"") }
     if ($recording) { $arguments += '--recording' }
+    if ($dialog) { $arguments += @('--dialog', $dialog) }
     $process = Start-Process -FilePath $exe -ArgumentList $arguments -NoNewWindow -Wait -PassThru
     if ($process.ExitCode -ne 0 -or -not (Test-Path $file)) { throw "screenshot $file failed ($($process.ExitCode))" }
     $image = [System.Drawing.Image]::FromFile($file)
     $width = $image.Width; $height = $image.Height
     $image.Dispose()
     Write-Host "saved $file ($width x $height)"
-    if ($scale -eq '1.5' -and $width -lt 1400) { throw "150% screenshot is only $width px wide: the screen is too small to show the real layout" }
+    if ($scale -eq '1.5' -and $width -lt 1400 -and -not $dialog) { throw "150% screenshot is only $width px wide: the screen is too small to show the real layout" }
 }

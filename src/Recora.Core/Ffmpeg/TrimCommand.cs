@@ -14,6 +14,12 @@ namespace Recora.Core.Ffmpeg
         /// <summary>The longest a stream-copy cut can start before the chosen moment in Recora's own files.</summary>
         public const double KeyframeSlackSeconds = 2.0;
 
+        /// <summary>
+        /// A keyframe this close after the chosen start is taken instead of the one before it: Recora's keyframes sit a
+        /// frame or so after each 2-second mark, and seeking to exactly 2.0 would otherwise go back to 0.
+        /// </summary>
+        public const double LateKeyframeSeconds = 0.25;
+
         /// <summary>The muxer for a file Recora can cut, by extension; null when the type is not supported.</summary>
         public static string? Muxer(string path) => Path.GetExtension(path).ToLowerInvariant() switch
         {
@@ -45,15 +51,43 @@ namespace Recora.Core.Ffmpeg
             var muxer = Muxer(output) ?? throw new ArgumentException("unsupported output type: " + output, nameof(output));
 
             // Both bounds go before -i: input seeking is instant, and -to on the input counts from the same clock as -ss.
+            var seek = start + TimeSpan.FromSeconds(Math.Min(LateKeyframeSeconds, Math.Max(0, (end - start).TotalSeconds / 2)));
             var args = new FfmpegArgs()
                 .Add("-hide_banner", "-y", "-nostats", "-loglevel", "error")
-                .Add("-ss", Seconds(start), "-to", Seconds(end), "-i", input)
+                .AddIf(start > TimeSpan.Zero, "-ss", Seconds(seek))
+                .Add("-to", Seconds(end), "-i", input)
                 .Add("-map", "0", "-c", "copy", "-avoid_negative_ts", "make_zero");
 
             return args.AddIf(muxer == "mp4", "-movflags", "+faststart").Add("-f", muxer, output);
         }
 
         internal static string Seconds(TimeSpan value) => value.TotalSeconds.ToString("0.000", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// The length of a file Recora did not record itself (the library only remembers its own): <c>ffmpeg -i</c> prints
+    /// "Duration: 00:01:02.50" on stderr and exits with an error for lack of an output, which is expected.
+    /// </summary>
+    public static class MediaInfoCommand
+    {
+        private static readonly System.Text.RegularExpressions.Regex DurationLine =
+            new System.Text.RegularExpressions.Regex(@"Duration:\s*(\d+):(\d{2}):(\d{2}(?:\.\d+)?)");
+
+        public static FfmpegArgs Build(string input) => new FfmpegArgs().Add("-hide_banner", "-nostdin", "-i", input);
+
+        public static TimeSpan? ParseDuration(string stderr)
+        {
+            var match = DurationLine.Match(stderr ?? string.Empty);
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            var seconds = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) * 3600
+                + int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) * 60
+                + double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+            return seconds > 0 ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null;
+        }
     }
 
     /// <summary>One still of a video, scaled into a fixed box and written as raw BGRA to stdout, for the cut dialog.</summary>

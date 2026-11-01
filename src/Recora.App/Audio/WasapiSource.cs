@@ -118,6 +118,9 @@ namespace Recora.App.Audio
 
         public event Action<WasapiSource>? Lost;
 
+        /// <summary>Every converted block (48 kHz stereo), on NAudio's capture thread; used by the microphone test.</summary>
+        public event Action<float[], int>? Captured;
+
         public string Name { get; }
 
         public RingBufferInput Input { get; }
@@ -152,6 +155,7 @@ namespace Recora.App.Audio
             if (frames > 0)
             {
                 _buffer.Write(stereo, 0, frames);
+                Captured?.Invoke(stereo, frames);
             }
         }
 

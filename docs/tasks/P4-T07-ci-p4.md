@@ -3,9 +3,9 @@ id: P4-T07
 title: "CI: kiểm tham số bộ mã hoá GPU, chạy các selftest mới, ảnh chụp"
 phase: P4
 lane: QA
-status: todo
+status: review
 deps: [P4-T04, P4-T05, P4-T06]
-touches: [tools/ci/**, .github/workflows/ci.yml, src/Recora.App/SelfTest*.cs]
+touches: [tools/ci/**, .github/workflows/ci.yml, src/Recora.App/SelfTest*.cs, src/Recora.App/Program.cs, src/Recora.Core/Ffmpeg/TrimCommand.cs, tests/Recora.Core.Tests/Ffmpeg/**, src/Recora.App/MainController.cs, src/Recora.App/UI/UiScreenshot.cs]
 size: S
 ---
 

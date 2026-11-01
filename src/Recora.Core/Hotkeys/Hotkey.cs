@@ -29,6 +29,9 @@ namespace Recora.Core.Hotkeys
 
         public static Hotkey Screenshot => new Hotkey(HotkeyModifiers.None, 0x7A);
 
+        /// <summary>Alt+F10: the key gamers already know for "save the last moments".</summary>
+        public static Hotkey SaveReplay => new Hotkey(HotkeyModifiers.Alt, 0x79);
+
         public static bool TryParse(string? text, out Hotkey hotkey)
         {
             hotkey = default;

@@ -68,13 +68,20 @@ namespace Recora.Core.Tests.Ffmpeg
 
             var input = args.IndexOf("-i");
             Assert.True(args.IndexOf("-ss") < input && args.IndexOf("-to") < input);
-            Assert.Equal("12.500", args[args.IndexOf("-ss") + 1]);
+            Assert.Equal("12.750", args[args.IndexOf("-ss") + 1]);
             Assert.Equal("75.000", args[args.IndexOf("-to") + 1]);
             Assert.Equal("copy", args[args.IndexOf("-c") + 1]);
             Assert.Equal("0", args[args.IndexOf("-map") + 1]);
             Assert.Equal("make_zero", args[args.IndexOf("-avoid_negative_ts") + 1]);
             Assert.Equal("mp4", args[args.IndexOf("-f") + 1]);
             Assert.Equal(output, args.Last());
+        }
+
+        [Fact]
+        public void Build_FromTheStart_DoesNotSeek_AndShortCutsKeepTheirStart()
+        {
+            Assert.DoesNotContain("-ss", TrimCommand.Build(Video, "b.mp4", TimeSpan.Zero, TimeSpan.FromSeconds(5)).Items);
+            Assert.Equal("10.100", TrimCommand.Build(Video, "b.mp4", TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10.2)).ValueOf("-ss"));
         }
 
         [Theory]
@@ -99,6 +106,14 @@ namespace Recora.Core.Tests.Ffmpeg
             Assert.NotEqual(first, TrimCommand.OutputPath(Video, path => path == first));
             Assert.EndsWith(".mp4", TrimCommand.OutputPath(Video, path => path == first));
         }
+
+        [Theory]
+        [InlineData("  Duration: 00:01:02.50, start: 0.000000, bitrate: 2400 kb/s", 62.5)]
+        [InlineData("Input #0, matroska,webm\n  Duration: 01:00:00.04, start: 0", 3600.04)]
+        [InlineData("  Duration: N/A, start: 1793464516.479924", null)]
+        [InlineData("garbage", null)]
+        public void MediaInfo_ParsesTheDurationLine(string stderr, double? expected) =>
+            Assert.Equal(expected, MediaInfoCommand.ParseDuration(stderr)?.TotalSeconds);
 
         [Fact]
         public void FramePreview_OneBgraFrameInAFixedBox()
