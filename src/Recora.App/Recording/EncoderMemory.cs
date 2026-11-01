@@ -43,6 +43,21 @@ namespace Recora.App.Recording
             }
         }
 
+        /// <summary>Has this encoder refused the capture's D3D11 textures on this PC, whatever it does with system memory?</summary>
+        public bool TextureInputFailed(VideoEncoder encoder) => _cache.Failed.Contains(TextureKey(encoder));
+
+        public void RememberTextureInput(VideoEncoder encoder, bool worked)
+        {
+            var key = TextureKey(encoder);
+            if (worked == !_cache.Failed.Contains(key))
+            {
+                return;
+            }
+
+            _cache.Failed = worked ? _cache.Failed.Where(n => n != key).ToArray() : _cache.Failed.Concat(new[] { key }).ToArray();
+            Dirty = true;
+        }
+
         /// <summary>User's forced choice first, then encoders known to work, then untried ones, known failures last.</summary>
         public IReadOnlyList<VideoEncoder> Order(IReadOnlyList<VideoEncoder> candidates, EncoderKind? preferred)
         {
@@ -71,5 +86,7 @@ namespace Recora.App.Recording
                 .Select(p => p.e)
                 .ToList();
         }
+
+        private static string TextureKey(VideoEncoder encoder) => encoder.FfmpegName + "+textures";
     }
 }

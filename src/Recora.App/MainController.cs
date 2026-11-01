@@ -80,6 +80,7 @@ namespace Recora.App
         private bool _preparing;
         private Countdown? _countdown;
         private RecordingBar? _bar;
+        private bool _cpuWarned;
         private AboutPage? _about;
         private AvailableUpdate? _update;
         private bool _updating;
@@ -1239,6 +1240,7 @@ namespace Recora.App
                 }
 
                 OpenBar(source is DeviceSource || audioOnly != null ? SelectedMonitor().Target.Bounds : source.Monitor.Bounds);
+                WarnIfRecordingOnCpu(audioOnly != null || source is DeviceSource);
             }
 
             if (_memory != null && _memory.Dirty)
@@ -1399,6 +1401,22 @@ namespace Recora.App
                     _overlay = null;
                 }
             }
+        }
+
+        /// <summary>Once per run: a game's frame rate drops on the CPU route, and the user can only act on it if told.</summary>
+        private void WarnIfRecordingOnCpu(bool notScreen)
+        {
+            var encoder = _recorder?.Status().Encoder;
+            if (notScreen || _cpuWarned || _settings.Encoder == EncoderChoice.X264 || !EncoderCatalog.IsCpuEncoderName(encoder))
+            {
+                return;
+            }
+
+            _cpuWarned = true;
+            _tray.Notify(
+                "Recora đang ghi bằng CPU",
+                "GPU của máy chưa ghi được nên game có thể tụt FPS. Giảm còn 30 khung hình mỗi giây hoặc 720p ở phần Cài đặt sẽ nhẹ hơn.",
+                ToolTipIcon.Warning);
         }
 
         /// <summary>The recording bar on the recorded screen; Windows that can't hide it from capture get none.</summary>

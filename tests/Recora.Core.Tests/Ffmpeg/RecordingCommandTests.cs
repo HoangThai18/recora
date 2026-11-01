@@ -157,6 +157,25 @@ namespace Recora.Core.Tests.Ffmpeg
         }
 
         [Fact]
+        public void FilterChain_AmfDownloadingFrames_ConvertsToNv12WithBt709Tags()
+        {
+            var args = Build(Plan(kind: EncoderKind.Amf) with { DownloadFrames = true });
+
+            Assert.Equal("hwdownload,format=bgra,scale=out_color_matrix=bt709:out_range=tv,format=nv12", ValueAfter(args, "-vf"));
+            Assert.Equal("bt709", ValueAfter(args, "-colorspace"));
+            Assert.Equal("h264_amf", ValueAfter(args, "-c:v"));
+        }
+
+        [Fact]
+        public void FilterChain_AmfDownloadingScaledFrames_ScalesOnTheCpu()
+        {
+            var args = Build(Plan(kind: EncoderKind.Amf, scale: OutputScale.P720) with { DownloadFrames = true });
+
+            Assert.Contains("scale=1280:720:flags=bicubic:", ValueAfter(args, "-vf"));
+            Assert.DoesNotContain("scale_d3d11", ValueAfter(args, "-vf"));
+        }
+
+        [Fact]
         public void FilterChain_Qsv_ConvertsToNv12OnGpuAndMapsToQsv()
         {
             var args = Build(Plan(kind: EncoderKind.Qsv));

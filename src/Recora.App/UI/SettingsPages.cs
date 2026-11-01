@@ -230,9 +230,11 @@ namespace Recora.App.UI
                 Font = Theme.Body,
                 Width = 420,
                 DisplayMember = nameof(AudioDeviceOption.Name),
-                DataSource = items,
             };
-            combo.HandleCreated += (_, _) => combo.SelectedIndex = Math.Max(0, items.FindIndex(d => d.Id == selectedId));
+
+            // Not DataSource: it stays empty until the combo has a BindingContext, which can be after its handle exists.
+            combo.Items.AddRange(items.Cast<object>().ToArray());
+            combo.SelectedIndex = Math.Max(0, items.FindIndex(d => d.Id == selectedId));
             combo.SelectionChangeCommitted += (_, _) =>
             {
                 apply(((AudioDeviceOption)combo.SelectedItem).Id);

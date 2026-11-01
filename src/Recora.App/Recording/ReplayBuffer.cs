@@ -246,7 +246,7 @@ namespace Recora.App.Recording
             FfmpegProcess process;
             try
             {
-                process = FfmpegProcess.Start(_environment.FfmpegPath, ReplayCommand.Build(plan, folder, pump.PipePaths, seconds), "replay");
+                process = FfmpegProcess.Start(_environment.FfmpegPath, ReplayCommand.Build(plan, folder, pump.PipePaths, seconds), "replay", !plan.Encoder.IsHardware);
             }
             catch
             {
@@ -275,11 +275,11 @@ namespace Recora.App.Recording
                 }
 
                 EncoderName = plan.Encoder.FfmpegName;
-                Log.Info($"replay buffer: last {seconds} s with {plan.Backend}/{plan.Encoder.FfmpegName}");
+                Log.Info($"replay buffer: last {seconds} s with {plan.Backend}/{plan.Encoder.FfmpegName}{(plan.DownloadFrames ? " (system memory)" : string.Empty)}");
                 return null;
             }
 
-            var reason = process.HasExited ? LastLines(process.ErrorTail, 4) : "no frame within " + FirstFrameTimeout.TotalSeconds + " s";
+            var reason = process.HasExited ? FfmpegFailure.Reason(process.ErrorTail) : "no frame within " + FirstFrameTimeout.TotalSeconds + " s";
             process.Kill();
             process.WaitForExit(TimeSpan.FromSeconds(5));
             process.Dispose();
@@ -307,12 +307,6 @@ namespace Recora.App.Recording
             {
                 return new ReplayChunk[0];
             }
-        }
-
-        private static string LastLines(string text, int count)
-        {
-            var lines = text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
-            return lines.Count == 0 ? "ffmpeg exited" : string.Join(" | ", lines.Skip(Math.Max(0, lines.Count - count)));
         }
 
         private static void TryDeleteFolder(string folder)

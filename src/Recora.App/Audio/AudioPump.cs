@@ -250,6 +250,12 @@ namespace Recora.App.Audio
                 {
                     // Expected: Stop() closed the pipe, or FFmpeg exited first after its 'q'.
                 }
+                catch (IOException error)
+                {
+                    // FFmpeg went away first; whoever started it reports why, and a failed encoder attempt lands here too.
+                    Log.Warn($"audio pump {_track.Name}: FFmpeg closed the pipe ({error.Message})");
+                    _owner.Failed?.Invoke(_track.Name, error);
+                }
                 catch (Exception error)
                 {
                     Log.Error($"audio pump {_track.Name} failed", error);

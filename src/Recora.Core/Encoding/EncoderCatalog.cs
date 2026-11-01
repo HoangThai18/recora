@@ -54,6 +54,10 @@ namespace Recora.Core.Encoding
         public static bool IsHardware(EncoderKind kind) =>
             kind == EncoderKind.Nvenc || kind == EncoderKind.Amf || kind == EncoderKind.Qsv;
 
+        /// <summary>True for the FFmpeg names of the CPU encoders; an unknown or missing name is not a claim about the CPU.</summary>
+        public static bool IsCpuEncoderName(string? ffmpegName) =>
+            ffmpegName == "libx264" || ffmpegName == "h264_mf" || ffmpegName == "hevc_mf";
+
         public static string DisplayName(EncoderKind kind) => kind switch
         {
             EncoderKind.Nvenc => "NVIDIA NVENC",

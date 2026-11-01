@@ -50,7 +50,8 @@ namespace Recora.App.Recording
             }
         }
 
-        public static FfmpegProcess Start(string ffmpegPath, FfmpegArgs args, string name)
+        /// <param name="yieldCpu">Encoding on the CPU: run below normal so a game on the same cores keeps its frame rate.</param>
+        public static FfmpegProcess Start(string ffmpegPath, FfmpegArgs args, string name, bool yieldCpu = false)
         {
             var process = new Process { StartInfo = StartInfo(ffmpegPath, args), EnableRaisingEvents = true };
             var ffmpeg = new FfmpegProcess(process, name);
@@ -61,6 +62,11 @@ namespace Recora.App.Recording
             Log.Info($"[{name}] ffmpeg {args.ToCommandLine()}");
             process.Start();
             ChildProcessJob.Attach(process);
+            if (yieldCpu)
+            {
+                LowerPriority(process);
+            }
+
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
             return ffmpeg;
@@ -131,6 +137,19 @@ namespace Recora.App.Recording
             }
 
             _process.Dispose();
+        }
+
+        private static void LowerPriority(Process process)
+        {
+            try
+            {
+                process.PriorityClass = ProcessPriorityClass.BelowNormal;
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException)
+            {
+                // Already exited or refused: the attempt itself will say so, and the priority alone is no reason to fail.
+                Log.Warn("could not lower FFmpeg's priority: " + error.Message);
+            }
         }
 
         private static ProcessStartInfo StartInfo(string ffmpegPath, FfmpegArgs args) => new ProcessStartInfo(ffmpegPath, args.ToCommandLine())

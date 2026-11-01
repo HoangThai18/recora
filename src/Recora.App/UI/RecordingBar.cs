@@ -75,6 +75,10 @@ namespace Recora.App.UI
             try
             {
                 bar.CreateHandle();
+
+                // A per-pixel layered window has no surface until its first UpdateLayeredWindow, and Windows 10 refused
+                // the affinity on it then (error 8). It is still hidden here, so nothing can reach the video.
+                bar.Render();
                 if (!WindowExclusion.Apply(bar))
                 {
                     Log.Warn("recording bar: this Windows can't hide it from capture, not shown");
@@ -82,7 +86,6 @@ namespace Recora.App.UI
                     return null;
                 }
 
-                bar.Render();
                 bar.Show();
                 bar._blink.Start();
                 return bar;

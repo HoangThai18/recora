@@ -170,6 +170,11 @@ namespace Recora.Core.Ffmpeg
                 return CpuConversion(kind, scaled, width, height);
             }
 
+            if (plan.DownloadFrames)
+            {
+                return "hwdownload,format=bgra," + CpuConversion(kind, scaled, width, height);
+            }
+
             switch (kind)
             {
                 case EncoderKind.Nvenc:
@@ -215,7 +220,7 @@ namespace Recora.Core.Ffmpeg
                 return new string[0];
             }
 
-            if (plan.Backend == CaptureBackend.Gdigrab || plan.Encoder.Kind == EncoderKind.X264 || plan.Encoder.Kind == EncoderKind.MediaFoundation)
+            if (plan.Backend == CaptureBackend.Gdigrab || plan.DownloadFrames || plan.Encoder.Kind == EncoderKind.X264 || plan.Encoder.Kind == EncoderKind.MediaFoundation)
             {
                 return new[] { "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv" };
             }

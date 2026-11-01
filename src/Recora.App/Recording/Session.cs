@@ -95,7 +95,7 @@ namespace Recora.App.Recording
         /// <summary>Starts a segment with this plan. Returns null when frames flow, otherwise why it failed.</summary>
         public string? TryOpenSegment(string ffmpeg, RecordingPlan plan, TimeSpan firstFrameTimeout)
         {
-            var failure = TryOpen(ffmpeg, (path, pipes) => RecordingCommand.Build(plan, path, pipes), $"{plan.Backend}/{plan.Encoder.FfmpegName}", plan.Encoder.FfmpegName, audioOnly: false, firstFrameTimeout);
+            var failure = TryOpen(ffmpeg, (path, pipes) => RecordingCommand.Build(plan, path, pipes), $"{plan.Backend}/{plan.Encoder.FfmpegName}{(plan.DownloadFrames ? " (system memory)" : string.Empty)}", plan.Encoder.FfmpegName, audioOnly: false, firstFrameTimeout, !plan.Encoder.IsHardware);
 
             // The codec actually written, not the one asked for: H.265 falls back to H.264 on GPUs (and the CPU) that
             // lack it, and finalizing must not tag that stream as hvc1.
@@ -126,7 +126,7 @@ namespace Recora.App.Recording
             return TryOpen(ffmpeg, (path, pipes) => AudioRecordingCommand.Build(pipes[0], format, quality, path), "audio/" + codec, codec, audioOnly: true, timeout);
         }
 
-        private string? TryOpen(string ffmpeg, Func<string, IReadOnlyList<string>, FfmpegArgs> command, string label, string encoder, bool audioOnly, TimeSpan firstFrameTimeout)
+        private string? TryOpen(string ffmpeg, Func<string, IReadOnlyList<string>, FfmpegArgs> command, string label, string encoder, bool audioOnly, TimeSpan firstFrameTimeout, bool yieldCpu = false)
         {
             var name = SessionManifest.SegmentName(Manifest.Segments.Count);
             var path = Path.Combine(Folder, name);
@@ -135,7 +135,7 @@ namespace Recora.App.Recording
 
             var pump = new AudioPump(Request.AudioTracks);
             pump.Start();
-            var process = FfmpegProcess.Start(ffmpeg, command(path, pump.PipePaths), "seg " + name);
+            var process = FfmpegProcess.Start(ffmpeg, command(path, pump.PipePaths), "seg " + name, yieldCpu);
             var clock = Stopwatch.StartNew();
 
             // Video is live once a frame is encoded; sound-only output has no frames, so time must move instead.
@@ -157,7 +157,7 @@ namespace Recora.App.Recording
             }
 
             // The last few stderr lines: FFmpeg ends with "Conversion failed!", the cause is a line or two above.
-            var reason = process.HasExited ? LastLines(process.ErrorTail, 4) : (audioOnly ? "no audio" : "no frame") + " within " + firstFrameTimeout.TotalSeconds + " s";
+            var reason = process.HasExited ? FfmpegFailure.Reason(process.ErrorTail) : (audioOnly ? "no audio" : "no frame") + " within " + firstFrameTimeout.TotalSeconds + " s";
             process.Kill();
             process.WaitForExit(TimeSpan.FromSeconds(5));
             process.Dispose();

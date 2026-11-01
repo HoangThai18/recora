@@ -140,7 +140,8 @@ namespace Recora.Core.Encoding
                     break;
 
                 case EncoderKind.X264:
-                    args.AddRange(new[] { "-preset", "veryfast", "-crf", Num(q) });
+                    // x264 shares the CPU with the game it records, so speed outranks file size here.
+                    args.AddRange(new[] { "-preset", "superfast", "-crf", Num(q) });
                     if (limited)
                     {
                         // Capped CRF: constant quality until the VBV ceiling, then x264 raises the quantizer.

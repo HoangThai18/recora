@@ -32,6 +32,7 @@ namespace Recora.Core.Recording
 
     /// <summary>Everything that decides one segment's FFmpeg command, already resolved to a backend and an encoder.</summary>
     /// <param name="MaxGigabytesPerHour">The user's size limit (0 for none), shared between the picture and the sound.</param>
+    /// <param name="DownloadFrames">Hand a GPU encoder frames from system memory instead of the capture's D3D11 textures.</param>
     public sealed record RecordingPlan(
         CaptureSource Source,
         CaptureBackend Backend,
@@ -41,7 +42,8 @@ namespace Recora.Core.Recording
         OutputScale Scale,
         bool DrawCursor,
         AudioLayout Audio,
-        int MaxGigabytesPerHour = 0)
+        int MaxGigabytesPerHour = 0,
+        bool DownloadFrames = false)
     {
         public int AudioTrackCount => Audio switch
         {

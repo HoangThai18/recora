@@ -29,30 +29,51 @@ namespace Recora.App.Recording
             {
                 foreach (var encoder in encoders)
                 {
-                    var plan = new RecordingPlan(
-                        request.Source, backend, encoder, request.Quality, request.Fps, request.Scale, request.DrawCursor, Layout(request), request.MaxGigabytesPerHour);
-                    var outcome = tryOpen(plan);
+                    string? outcome = null;
+                    var texturesFailed = false;
 
-                    if (outcome == null)
+                    foreach (var download in FrameRoutes.For(backend, encoder.Kind, memory.TextureInputFailed(encoder)))
                     {
-                        memory.Worked(encoder);
-                        return;
-                    }
+                        var plan = new RecordingPlan(
+                            request.Source, backend, encoder, request.Quality, request.Fps, request.Scale, request.DrawCursor, Layout(request), request.MaxGigabytesPerHour, download);
+                        outcome = tryOpen(plan);
 
-                    failures.Add($"{backend}/{encoder.FfmpegName}: {outcome}");
-                    Log.Warn($"candidate {backend}/{encoder.FfmpegName} failed: {outcome}");
+                        if (outcome == null)
+                        {
+                            memory.Worked(encoder);
+
+                            // Only memory working where textures just failed proves the textures were the problem: a
+                            // capture hiccup fails both routes and must not move a healthy GPU off its lightest path.
+                            if (!download || texturesFailed)
+                            {
+                                memory.RememberTextureInput(encoder, worked: !download);
+                            }
+
+                            return;
+                        }
+
+                        var route = download ? " (system memory)" : string.Empty;
+                        failures.Add($"{backend}/{encoder.FfmpegName}{route}: {outcome}");
+                        Log.Warn($"candidate {backend}/{encoder.FfmpegName}{route} failed: {outcome}");
+
+                        if (IsCaptureFailure(outcome))
+                        {
+                            break;
+                        }
+
+                        texturesFailed |= !download;
+                    }
 
                     // A capture that cannot even open fails the same way for every encoder: skip to the next backend,
                     // and don't hold it against the encoder.
-                    if (outcome.IndexOf("Error opening input", StringComparison.OrdinalIgnoreCase) >= 0)
+                    if (outcome != null && IsCaptureFailure(outcome))
                     {
                         break;
                     }
 
                     // Only failures that name the encoder count against it (a bad option or a broken input would
                     // otherwise mark every encoder as failed and push recordings onto the CPU).
-                    if (outcome.IndexOf(encoder.FfmpegName, StringComparison.OrdinalIgnoreCase) >= 0
-                        || outcome.IndexOf("encoder", StringComparison.OrdinalIgnoreCase) >= 0)
+                    if (outcome != null && NamesEncoder(outcome, encoder))
                     {
                         memory.Failed(encoder);
                     }
@@ -66,6 +87,13 @@ namespace Recora.App.Recording
 
             throw new RecoraException("no_working_encoder", "no capture/encoder pair worked: " + string.Join(" || ", failures));
         }
+
+        private static bool IsCaptureFailure(string outcome) =>
+            outcome.IndexOf("Error opening input", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        private static bool NamesEncoder(string outcome, VideoEncoder encoder) =>
+            outcome.IndexOf(encoder.FfmpegName, StringComparison.OrdinalIgnoreCase) >= 0
+            || outcome.IndexOf("encoder", StringComparison.OrdinalIgnoreCase) >= 0;
 
         private static IEnumerable<CaptureBackend> Backends(CaptureEnvironment environment, CaptureSource source)
         {
