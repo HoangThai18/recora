@@ -99,6 +99,11 @@ namespace Recora.App.Recording
 
             // The codec actually written, not the one asked for: H.265 falls back to H.264 on GPUs (and the CPU) that
             // lack it, and finalizing must not tag that stream as hvc1.
+            if (failure == null)
+            {
+                LivePlan = plan;
+            }
+
             var codec = plan.Encoder.Codec.ToString();
             if (failure == null && Manifest.Codec != codec)
             {
@@ -162,6 +167,22 @@ namespace Recora.App.Recording
             TryDelete(path);
             return reason;
         }
+
+        /// <summary>The plan the live segment runs with (backend and encoder), to restart it the same way.</summary>
+        public RecordingPlan? LivePlan { get; private set; }
+
+        /// <summary>
+        /// Why the live FFmpeg exited by itself, or null while it runs. Windows takes the screen away from every
+        /// capture when a game switches to exclusive fullscreen; ddagrab then stops with "AcquireNextFrame failed".
+        /// </summary>
+        public string? LiveSegmentEnded()
+        {
+            var process = _process;
+            return process != null && process.HasExited ? LastLines(process.ErrorTail, 3) : null;
+        }
+
+        /// <summary>For the selftest: FFmpeg dying under a live recording, as Windows makes it do.</summary>
+        internal void KillLiveForTest() => _process?.Kill();
 
         /// <summary>Ends the live segment cleanly: drain the audio, then 'q', then remember its exact audio length.</summary>
         public void CloseSegment()

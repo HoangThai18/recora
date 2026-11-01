@@ -88,6 +88,59 @@ namespace Recora.App
             }
         }
 
+        /// <summary>
+        /// Black board 2 s, then FFmpeg is killed under the live recording (what Windows does to every screen capture
+        /// when a game enters exclusive fullscreen), the board turns white, 3 s later stop. The recorder must have
+        /// started a new segment by itself: the file holds both black and white and lasts close to 5 s.
+        /// </summary>
+        private static void RecordThroughCaptureLoss(string directory, SelfTestReport report)
+        {
+            var folder = Path.Combine(directory, "healed");
+            var (recorder, environment) = NewRecorder();
+            var request = Request(environment, folder);
+
+            using (var board = new SyncBoard())
+            {
+                board.Show();
+                board.Refresh();
+                Pump(TimeSpan.FromMilliseconds(300));
+
+                void Paint(System.Drawing.Color color) => board.Invoke(new Action(() =>
+                {
+                    board.BackColor = color;
+                    board.Refresh();
+                }));
+
+                Paint(System.Drawing.Color.Black);
+                var run = Task.Run(async () =>
+                {
+                    await recorder.StartAsync(request).ConfigureAwait(false);
+                    ThrowIfNot(recorder, SessionState.Recording, "start");
+                    Thread.Sleep(2000);
+                    recorder.KillLiveForTest();
+                    Paint(System.Drawing.Color.White);
+                    Thread.Sleep(3000);
+                    ThrowIfNot(recorder, SessionState.Recording, "after capture loss");
+                    return await recorder.StopAsync().ConfigureAwait(false);
+                });
+
+                while (!run.IsCompleted)
+                {
+                    Application.DoEvents();
+                    Thread.Sleep(5);
+                }
+
+                var saved = run.GetAwaiter().GetResult();
+                report.HealedOutput = saved?.Path;
+                report.HealedSeconds = saved?.Duration.TotalSeconds ?? 0;
+            }
+
+            if (report.HealedOutput == null)
+            {
+                throw new InvalidOperationException("recording through a capture loss produced no file");
+            }
+        }
+
         /// <summary><c>--selftest-crash &lt;dir&gt;</c>: starts recording into dir, then kills this process mid-recording.</summary>
         public static int Crash(string directory)
         {
