@@ -45,6 +45,25 @@ namespace Recora.App.UI.Controls
             VisibleChanged += (_, _) => _watch.Enabled = Visible && Child != IntPtr.Zero;
         }
 
+        /// <summary>Where things are, for the selftest log: window rect, client origin and size, and styles.</summary>
+        public string Describe()
+        {
+            var window = Child;
+            if (window == IntPtr.Zero)
+            {
+                return "no child";
+            }
+
+            GetWindowRect(window, out var rect);
+            GetClientRect(window, out var client);
+            var origin = new NativePoint();
+            ClientToScreen(window, ref origin);
+            var host = RectangleToScreen(ClientRectangle);
+            return $"host {host.X},{host.Y} {host.Width}x{host.Height}; window {rect.Left},{rect.Top} {rect.Right - rect.Left}x{rect.Bottom - rect.Top}; "
+                + $"client origin {origin.X},{origin.Y} size {client.Right}x{client.Bottom}; "
+                + $"style 0x{GetWindowLongPtr(window, GwlStyle).ToInt64():x} ex 0x{GetWindowLongPtr(window, GwlExStyle).ToInt64():x}";
+        }
+
         /// <summary>The held window has no frame and covers exactly this panel (checked by the selftest).</summary>
         public bool Fits
         {
@@ -189,6 +208,19 @@ namespace Recora.App.UI.Controls
 
         [DllImport("user32.dll")]
         private static extern bool GetWindowRect(IntPtr window, out NativeRect rect);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetClientRect(IntPtr window, out NativeRect rect);
+
+        [DllImport("user32.dll")]
+        private static extern bool ClientToScreen(IntPtr window, ref NativePoint point);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativePoint
+        {
+            public int X;
+            public int Y;
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct NativeRect

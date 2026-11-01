@@ -22,6 +22,28 @@ namespace Recora.App
         /// SHA256SUMS), embeds its window in a test form, puts the recording on a timeline over the control port,
         /// photographs the form, then hands Clipora its own window back and quits it. Writes <c>editor.txt</c>.
         /// </summary>
+        private static string DescribeTopLevel(IntPtr window)
+        {
+            GetWindowRect(window, out var rect);
+            GetClientRect(window, out var client);
+            return $"{rect.Left},{rect.Top} {rect.Right - rect.Left}x{rect.Bottom - rect.Top}, client {client.Right}x{client.Bottom}";
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr window, out EditorRect rect);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool GetClientRect(IntPtr window, out EditorRect rect);
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct EditorRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
         public static int Editor(string directory)
         {
             Directory.CreateDirectory(directory);
@@ -73,8 +95,11 @@ namespace Recora.App
                 Note("alive", session.IsAlive);
                 if (window != IntPtr.Zero)
                 {
+                    Note("before", "window " + DescribeTopLevel(window));
                     host.Adopt(window);
+                    Note("adopted", host.Describe());
                     Pump(TimeSpan.FromSeconds(2));
+                    Note("after_2s", host.Describe());
                     Note("embedded", host.Holds(window));
                     ok &= host.Holds(window);
 
@@ -93,6 +118,7 @@ namespace Recora.App
                     // Long enough for the guest to re-apply its own frame once; the host's watch must undo it.
                     Pump(TimeSpan.FromSeconds(4));
                     Note("fits", host.Fits);
+                    Note("at_screenshot", host.Describe());
                     ok &= host.Fits;
                     var picture = Path.Combine(directory, "editor-embedded.png");
                     var area = form.RectangleToScreen(form.ClientRectangle);
