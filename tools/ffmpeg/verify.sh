@@ -29,6 +29,11 @@ for e in $REQUIRED_ENCODERS; do
     echo "$encoders" | grep -qx "$e" || { echo "missing encoder $e" >&2; status=1; }
 done
 
+muxers=$("$ffmpeg" -hide_banner -muxers 2>/dev/null | awk '{print $2}')
+for m in $REQUIRED_MUXERS; do
+    echo "$muxers" | grep -qx "$m" || { echo "missing muxer $m" >&2; status=1; }
+done
+
 if echo "$filters" | grep -qx gfxcapture; then echo "gfxcapture: yes"; else echo "gfxcapture: no (window capture falls back to a rectangle)"; fi
 
 # A real encode through the CPU path proves the binary runs and the static x264 links work.

@@ -17,7 +17,18 @@ namespace Recora.Core.Ffmpeg
 
         public const int AudioChannels = 2;
 
-        public static FfmpegArgs Build(RecordingPlan plan, string segmentPath, IReadOnlyList<string> audioPipes)
+        public static FfmpegArgs Build(RecordingPlan plan, string segmentPath, IReadOnlyList<string> audioPipes) =>
+            // If Recora or the PC dies mid-recording, the segment must already be on disk (BR-01): every packet is
+            // handed to the OS as soon as it is muxed (otherwise FFmpeg holds 32 KB, a short recording's whole file),
+            // and short Matroska clusters keep the loss to about 2 seconds.
+            Encode(plan, audioPipes).Add(
+                "-max_muxing_queue_size", "4096",
+                "-flush_packets", "1",
+                "-f", "matroska", "-cluster_time_limit", "2000",
+                segmentPath);
+
+        /// <summary>Inputs, mapping, video and audio encoding: everything but the muxer, shared with the replay buffer.</summary>
+        internal static FfmpegArgs Encode(RecordingPlan plan, IReadOnlyList<string> audioPipes)
         {
             if (audioPipes.Count != plan.AudioTrackCount)
             {
@@ -51,14 +62,7 @@ namespace Recora.Core.Ffmpeg
                 }
             }
 
-            // If Recora or the PC dies mid-recording, the segment must already be on disk (BR-01): every packet is
-            // handed to the OS as soon as it is muxed (otherwise FFmpeg holds 32 KB, a short recording's whole file),
-            // and short Matroska clusters keep the loss to about 2 seconds.
-            return args.Add(
-                "-max_muxing_queue_size", "4096",
-                "-flush_packets", "1",
-                "-f", "matroska", "-cluster_time_limit", "2000",
-                segmentPath);
+            return args;
         }
 
         /// <summary>The raw PCM the app's AudioPump writes: 48 kHz stereo float, read with minimal probing.</summary>
