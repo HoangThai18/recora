@@ -43,6 +43,9 @@ namespace Recora.Core.Settings
         public const int MinFps = 5;
         public const int MaxFps = 240;
 
+        /// <summary>How far back "Lưu khoảnh khắc" can reach, in seconds.</summary>
+        public static readonly int[] ReplayLengths = { 15, 30, 60, 120, 300 };
+
         /// <summary>The size limits offered in the Video page, in GB per hour (0: no limit).</summary>
         public static readonly int[] SizeLimits = { 0, 1, 2, 4, 8 };
 
@@ -122,6 +125,14 @@ namespace Recora.Core.Settings
         /// <summary>The microphone chain (gain, rumble filter, noise gate, compressor, limiter).</summary>
         [DataMember(Name = "micProcessing", Order = 37)] public MicProcessingSettings MicProcessing { get; set; } = new MicProcessingSettings();
 
+        /// <summary>Keep the last moments of the chosen screen on disk so <see cref="HotkeyReplay"/> can save them.</summary>
+        [DataMember(Name = "replayEnabled", Order = 38)] public bool ReplayEnabled { get; set; }
+
+        /// <summary>How many seconds a save reaches back, one of <see cref="ReplayLengths"/>.</summary>
+        [DataMember(Name = "replaySeconds", Order = 39)] public int ReplaySeconds { get; set; } = 30;
+
+        [DataMember(Name = "hotkeyReplay", Order = 40)] public string HotkeyReplay { get; set; } = "Alt+F10";
+
         [DataMember(Name = "audioFormat", Order = 30)]
         private string AudioFormatText { get => AudioFormat.ToString(); set => AudioFormat = Parse(value, AudioFormat.M4a); }
 
@@ -158,6 +169,8 @@ namespace Recora.Core.Settings
             HotkeyRecord ??= "F12";
             HotkeyPause ??= "Shift+F12";
             HotkeyScreenshot ??= "F11";
+            HotkeyReplay ??= "Alt+F10";
+            ReplaySeconds = Array.IndexOf(ReplayLengths, ReplaySeconds) >= 0 ? ReplaySeconds : 30;
             MonitorDevice ??= string.Empty;
             SystemAudioDevice ??= string.Empty;
             MicrophoneDevice ??= string.Empty;

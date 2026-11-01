@@ -43,8 +43,8 @@ namespace Recora.App
                 return await recorder.StopAsync().ConfigureAwait(false);
             }).GetAwaiter().GetResult();
 
-            RecordingRequest Request(CaptureSource source, string folder, AudioFormat? audioOnly) => new RecordingRequest(
-                source, VideoCodec.H264, null, QualityPreset.Balanced, 30, OutputScale.Original, DrawCursor: true, ContainerFormat.Mp4,
+            RecordingRequest Request(CaptureSource source, string folder, AudioFormat? audioOnly, VideoCodec codec = VideoCodec.H264) => new RecordingRequest(
+                source, codec, null, QualityPreset.Balanced, 30, OutputScale.Original, DrawCursor: true, ContainerFormat.Mp4,
                 Path.Combine(directory, folder),
                 new[] { new AudioTrackSpec("Âm thanh", new (IAudioInput, float)[] { (new ToneInput(440, 0.2f), 1f) }) },
                 audioOnly);
@@ -86,6 +86,12 @@ namespace Recora.App
             var mp3 = Record(Request(new MonitorSource(monitor), "audio", AudioFormat.Mp3), 2000);
             lines.Append($"audio_mp3={mp3?.Path}\n");
             lines.Append(FormattableString.Invariant($"audio_mp3_seconds={mp3?.Duration.TotalSeconds ?? 0:0.000}\n"));
+
+            // H.265 asked for where no encoder has it (the runner: no GPU, and x264 is H.264 only): the fallback to
+            // H.264 must still be saved, without the hvc1 tag that made 0.1.x fail to finish such recordings.
+            var fallback = Record(Request(new RegionSource(monitor, region), "hevc", null, VideoCodec.Hevc), 2000);
+            lines.Append($"hevc_fallback={fallback?.Path}\n");
+            ok &= fallback != null;
 
             var bounds = monitor.Bounds;
             var shot = ScreenshotService.Take(new Rectangle(bounds.X, bounds.Y, bounds.Width, bounds.Height), Path.Combine(directory, "shots"), ScreenshotFormat.Png, copyToClipboard: false, sound: false);

@@ -69,6 +69,10 @@ namespace Recora.App.UI
                 var preview = form.Home.Preview.Size;
                 form.Home.Preview.Image = ScreenPreview.Capture(screen, new Size(preview.Width, preview.Width * screen.Height / screen.Width));
 
+                const string replayHint = "Bấm Alt+F10 (cả khi đang trong game) để lưu 30 giây vừa qua của màn hình đang chọn thành video. Bấm F12 vẫn ghi thường như cũ.";
+                form.Home.Replay.Checked = true;
+                form.Home.ReplayLength.Value = 30;
+                form.Home.ShowReplay(replayHint, recording ? "> tạm nghỉ trong lúc ghi thường" : "> đang giữ 0:30 / 30 giây · h264_nvenc", canSave: !recording);
                 if (recording)
                 {
                     form.Home.Preview.ShowRecording(true, false, "00:12:34", "1,2 GB · 60 fps · h264_nvenc");
@@ -80,8 +84,8 @@ namespace Recora.App.UI
                 }
                 else
                 {
-                    form.Status.SetState("Sẵn sàng", Theme.Ok);
-                    form.Status.Details = "F12 ghi · Shift+F12 tạm dừng · F11 chụp ảnh";
+                    form.Status.SetState("Đang giữ khoảnh khắc", Theme.Ok);
+                    form.Status.Details = "Alt+F10 lưu 30 giây vừa qua · F12 ghi thường";
                 }
 
                 for (var level = 0; level < 12; level++)

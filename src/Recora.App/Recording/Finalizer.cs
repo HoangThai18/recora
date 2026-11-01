@@ -79,6 +79,15 @@ namespace Recora.App.Recording
             var command = audioOnly ? FinalizeCommand.BuildAudio(list, partial, audioFormat) : FinalizeCommand.Build(list, partial, format, codec);
             var run = FfmpegProcess.Run(ffmpeg, command, timeout);
 
+            // Sessions saved by 0.1.x named the requested codec: an H.264 fallback was then tagged hvc1 and refused by
+            // the MP4 muxer. Join those again untagged instead of failing at every start.
+            if (run.ExitCode != 0 && !audioOnly && codec == VideoCodec.Hevc && run.Error.IndexOf("incompatible with output codec", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                Log.Warn("segments are not H.265 after all; joining again without the hvc1 tag");
+                TryDeleteFile(partial);
+                run = FfmpegProcess.Run(ffmpeg, FinalizeCommand.Build(list, partial, format, VideoCodec.H264), timeout);
+            }
+
             if (run.ExitCode != 0 || !File.Exists(partial) || new FileInfo(partial).Length == 0)
             {
                 Log.Error("finalize failed: " + run.Error);

@@ -45,6 +45,12 @@ foreach ($key in $audioKeys) {
 }
 if ([IO.Path]::GetExtension($info.audio_m4a) -ne '.m4a' -or [IO.Path]::GetExtension($info.audio_wav) -ne '.wav') { throw "wrong file extensions" }
 
+# H.265 asked for on a runner without any H.265 encoder: saved as H.264 MP4 (0.1.x tagged it hvc1 and failed).
+$fallback = Probe $info.hevc_fallback
+$f = @($fallback.streams | Where-Object codec_type -eq 'video')[0]
+Write-Host ("hevc_fallback: {0} {1}x{2}, {3} s" -f $f.codec_name, $f.width, $f.height, $fallback.format.duration)
+if (-not $f -or ($f.codec_name -ne 'h264' -and $f.codec_name -ne 'hevc')) { throw "H.265 fallback recording has no usable video stream" }
+
 Add-Type -AssemblyName System.Drawing
 $image = [System.Drawing.Image]::FromFile($info.screenshot)
 $size = "{0}x{1}" -f $image.Width, $image.Height

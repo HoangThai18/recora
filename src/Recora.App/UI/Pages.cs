@@ -125,6 +125,8 @@ namespace Recora.App.UI
         private readonly SourceRow _row;
         private readonly Card _sourceCard;
         private readonly Label _pickerLabel;
+        private readonly Label _replayHint;
+        private readonly Label _replayState;
         private bool _filling;
 
         public HomePage()
@@ -176,6 +178,22 @@ namespace Recora.App.UI
             source.Body.Controls.Add(_row);
             source.Body.SizeChanged += (_, _) => FitRow(source);
             ShowPicker(PickerKind.Monitors);
+
+            var replay = AddCard("lưu khoảnh khắc");
+            Replay = new ToggleSwitch("Giữ sẵn khoảnh khắc vừa qua", false) { Size = new Size(280, 30), Margin = Padding.Empty };
+            ReplayLength = new Segmented<int>(
+                new[] { (15, "15 giây"), (30, "30 giây"), (60, "1 phút"), (120, "2 phút"), (300, "5 phút") }, 30)
+            {
+                Width = 380,
+                Margin = new Padding(12, 0, 0, 0),
+            };
+            _replayHint = Caption(string.Empty, Theme.Small, Theme.Muted, 4);
+            _replayState = Caption(string.Empty, Theme.Mono, Theme.Text, 10);
+            SaveReplay = new FlatButton("Lưu khoảnh khắc") { Primary = true, Size = new Size(170, 34), Margin = Padding.Empty, Enabled = false };
+            replay.Body.Controls.Add(Row(Replay, ReplayLength, 8));
+            replay.Body.Controls.Add(_replayHint);
+            replay.Body.Controls.Add(_replayState);
+            replay.Body.Controls.Add(SaveReplay);
 
             var audio = AddCard("âm thanh");
             SystemAudio = new ToggleSwitch("Tiếng máy (loa, tai nghe)", true) { Size = new Size(280, 30), Margin = Padding.Empty };
@@ -260,6 +278,29 @@ namespace Recora.App.UI
         public LevelMeter MicrophoneLevel { get; }
 
         public FlatButton ChangeQuality { get; }
+
+        /// <summary>The replay buffer switch; the controller reacts to it and sets it back when starting fails.</summary>
+        public ToggleSwitch Replay { get; }
+
+        public Segmented<int> ReplayLength { get; }
+
+        public FlatButton SaveReplay { get; }
+
+        /// <summary>"Lưu khoảnh khắc" text: what the key does, and what is held right now.</summary>
+        public void ShowReplay(string hint, string state, bool canSave)
+        {
+            // The state line changes every second while holding; only a new hint (or the first fill) can change the
+            // card's height, so only then is the page laid out again.
+            var relayout = _replayHint.Text != hint || _replayState.Text.Length == 0;
+            _replayHint.Text = hint;
+            _replayState.Text = state;
+            if (relayout)
+            {
+                RefitCards();
+            }
+
+            SaveReplay.Enabled = canSave;
+        }
 
         public void Display(HomeModel model)
         {

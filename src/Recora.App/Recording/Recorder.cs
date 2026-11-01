@@ -29,7 +29,8 @@ namespace Recora.App.Recording
         ContainerFormat Container,
         string OutputFolder,
         IReadOnlyList<AudioTrackSpec> AudioTracks,
-        AudioFormat? AudioOnly = null);
+        AudioFormat? AudioOnly = null,
+        int MaxGigabytesPerHour = 0);
 
     internal sealed record SavedRecording(string Path, TimeSpan Duration, long Bytes);
 
@@ -207,79 +208,8 @@ namespace Recora.App.Recording
                 throw new RecoraException("audio_failed", $"{format}: {failure}");
             }
 
-            var backends = Backends(request.Source);
-            var encoders = _memory.Order(
-                EncoderCatalog.Candidates(request.Source.Monitor.Vendor, request.Codec, _environment.Encoders),
-                request.PreferredEncoder);
-            var failures = new List<string>();
-
-            foreach (var backend in backends)
-            {
-                foreach (var encoder in encoders)
-                {
-                    var plan = new RecordingPlan(request.Source, backend, encoder, request.Quality, request.Fps, request.Scale, request.DrawCursor, Layout(request));
-                    var outcome = session.TryOpenSegment(_environment.FfmpegPath, plan, FirstFrameTimeout);
-
-                    if (outcome == null)
-                    {
-                        _memory.Worked(encoder);
-                        return;
-                    }
-
-                    failures.Add($"{backend}/{encoder.FfmpegName}: {outcome}");
-                    Log.Warn($"candidate {backend}/{encoder.FfmpegName} failed: {outcome}");
-
-                    // A capture that cannot even open fails the same way for every encoder: skip to the next backend,
-                    // and don't hold it against the encoder.
-                    if (outcome.IndexOf("Error opening input", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        break;
-                    }
-
-                    // Only failures that name the encoder count against it (a bad option or a broken input would
-                    // otherwise mark every encoder as failed and push recordings onto the CPU).
-                    if (outcome.IndexOf(encoder.FfmpegName, StringComparison.OrdinalIgnoreCase) >= 0
-                        || outcome.IndexOf("encoder", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        _memory.Failed(encoder);
-                    }
-                }
-            }
-
-            if (request.Source is DeviceSource && failures.All(f => f.IndexOf("Error opening input", StringComparison.OrdinalIgnoreCase) >= 0))
-            {
-                throw new RecoraException("device_unavailable", "the device did not open: " + string.Join(" || ", failures));
-            }
-
-            throw new RecoraException("no_working_encoder", "no capture/encoder pair worked: " + string.Join(" || ", failures));
+            CandidateRunner.Run(_environment, _memory, request, plan => session.TryOpenSegment(_environment.FfmpegPath, plan, FirstFrameTimeout));
         }
-
-        private IEnumerable<CaptureBackend> Backends(CaptureSource source)
-        {
-            var first = CaptureBackendSelector.Select(source, _environment.Capabilities);
-            yield return first;
-            if (first == CaptureBackend.Dshow)
-            {
-                yield break;
-            }
-
-            if (first != CaptureBackend.Gfxcapture && _environment.Capabilities.HasGfxcapture && source is not RegionSource)
-            {
-                yield return CaptureBackend.Gfxcapture;
-            }
-
-            if (first != CaptureBackend.Gdigrab)
-            {
-                yield return CaptureBackend.Gdigrab;
-            }
-        }
-
-        private static AudioLayout Layout(RecordingRequest request) => request.AudioTracks.Count switch
-        {
-            0 => AudioLayout.None,
-            1 => AudioLayout.Mixed,
-            _ => AudioLayout.SeparateTracks,
-        };
 
         private void Abandon()
         {

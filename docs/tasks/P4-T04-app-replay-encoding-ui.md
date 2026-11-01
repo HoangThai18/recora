@@ -3,9 +3,9 @@ id: P4-T04
 title: "App: giữ khoảnh khắc (Alt+F10), ô trên Trang chủ, khay; mức Tiết kiệm và trần dung lượng ở trang Video"
 phase: P4
 lane: DESKTOP
-status: todo
+status: review
 deps: [P4-T01, P4-T02]
-touches: [src/Recora.App/Recording/**, src/Recora.App/MainController.cs, src/Recora.App/UI/**, src/Recora.App/Platform/HotkeyManager.cs, src/Recora.App/SelfTest*.cs, src/Recora.Core/Settings/AppSettings.cs]
+touches: [src/Recora.App/Recording/**, src/Recora.App/MainController.cs, src/Recora.App/UI/**, src/Recora.App/Platform/HotkeyManager.cs, src/Recora.App/SelfTest*.cs, src/Recora.App/Program.cs, src/Recora.Core/Settings/AppSettings.cs, src/Recora.Core/Hotkeys/Hotkey.cs, tests/Recora.Core.Tests/Settings/**, tools/ci/replay-checks.ps1, tools/ci/modes-checks.ps1, .github/workflows/ci.yml]
 size: M
 ---
 

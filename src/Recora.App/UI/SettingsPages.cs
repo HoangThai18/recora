@@ -68,19 +68,35 @@ namespace Recora.App.UI
             : base("Video", settings)
         {
             var quality = AddCard("chất lượng");
-            Row(quality, "Chất lượng", Choice(settings.Quality, v => settings.Quality = v,
-                (QualityPreset.High, "Rất nét"), (QualityPreset.Balanced, "Cân bằng"), (QualityPreset.Small, "Nhẹ")),
-                "Cân bằng: chữ và chuyển động sắc nét, file khoảng một nửa so với Rất nét.");
-            Row(quality, "Khung hình mỗi giây", Choice(settings.Fps, v => settings.Fps = v,
-                (24, "24"), (30, "30"), (60, "60"), (120, "120"), (144, "144")),
-                "60 cho game và thao tác mượt; 30 cho bài giảng, file nhỏ hơn.");
+            Segmented<int>? fps = null;
+            Segmented<VideoCodec>? codec = null;
+            Row(quality, "Chất lượng", Choice(settings.Quality, v =>
+                {
+                    settings.Quality = v;
+                    if (v == QualityPreset.Saver)
+                    {
+                        // The two settings that save the most, set where the user can see (and undo) them.
+                        settings.Codec = VideoCodec.Hevc;
+                        settings.Fps = Math.Min(settings.Fps, 30);
+                        codec!.Value = settings.Codec;
+                        fps!.Value = settings.Fps;
+                    }
+                },
+                (QualityPreset.High, "Rất nét"), (QualityPreset.Balanced, "Cân bằng"), (QualityPreset.Small, "Nhẹ"), (QualityPreset.Saver, "Tiết kiệm")),
+                "Cân bằng: chữ và chuyển động sắc nét, file khoảng một nửa so với Rất nét. Tiết kiệm: file nhỏ nhất, chọn luôn H.265 và 30 khung/giây.");
+            fps = Choice(settings.Fps, v => settings.Fps = v, (24, "24"), (30, "30"), (60, "60"), (120, "120"), (144, "144"));
+            Row(quality, "Khung hình mỗi giây", fps, "60 cho game và thao tác mượt; 30 cho bài giảng, file nhỏ hơn.");
             Row(quality, "Độ phân giải", Choice(settings.Scale, v => settings.Scale = v,
                 (OutputScale.Original, "Gốc"), (OutputScale.P1080, "1080p"), (OutputScale.P720, "720p"), (OutputScale.P480, "480p")),
-                "Chỉ thu nhỏ, không bao giờ phóng to.");
+                "Chỉ thu nhỏ, không bao giờ phóng to. Màn 2K, 4K ghi 1080p thì file nhỏ đi gần một nửa.");
+            Row(quality, "Giới hạn dung lượng", Choice(settings.MaxGigabytesPerHour, v => settings.MaxGigabytesPerHour = v,
+                (0, "Không"), (1, "1 GB/giờ"), (2, "2 GB/giờ"), (4, "4 GB/giờ"), (8, "8 GB/giờ")),
+                "Mức trần cho cả hình lẫn tiếng: cảnh đứng yên vẫn nhỏ hơn nhiều, cảnh chuyển động nhanh bị ép cho vừa trần nên kém nét hơn.");
 
             var encoding = AddCard("mã hoá");
-            Row(encoding, "Codec", Choice(settings.Codec, v => settings.Codec = v,
-                (VideoCodec.H264, "H.264"), (VideoCodec.Hevc, "H.265"), (VideoCodec.Av1, "AV1")),
+            codec = Choice(settings.Codec, v => settings.Codec = v,
+                (VideoCodec.H264, "H.264"), (VideoCodec.Hevc, "H.265"), (VideoCodec.Av1, "AV1"));
+            Row(encoding, "Codec", codec,
                 "H.264 mở được ở mọi nơi; H.265 nhỏ hơn khoảng 30%; AV1 nhỏ nhất nhưng cần GPU đời mới. Máy không hỗ trợ thì Recora tự ghi H.264.");
 
             string Mark(EncoderKind kind, string name) => available(kind) ? name : name + " (không có)";
@@ -175,8 +191,9 @@ namespace Recora.App.UI
             var card = AddCard("phím tắt toàn cục");
             Row(card, "Bắt đầu / dừng ghi", Box(nameof(settings.HotkeyRecord), settings.HotkeyRecord, Hotkey.Record, v => settings.HotkeyRecord = v));
             Row(card, "Tạm dừng / ghi tiếp", Box(nameof(settings.HotkeyPause), settings.HotkeyPause, Hotkey.Pause, v => settings.HotkeyPause = v));
-            Row(card, "Chụp ảnh màn hình", Box(nameof(settings.HotkeyScreenshot), settings.HotkeyScreenshot, Hotkey.Screenshot, v => settings.HotkeyScreenshot = v),
-                "Phím chạy cả khi đang ở trong game. Ô đỏ nghĩa là app khác đã giữ phím đó: chọn phím khác.");
+            Row(card, "Chụp ảnh màn hình", Box(nameof(settings.HotkeyScreenshot), settings.HotkeyScreenshot, Hotkey.Screenshot, v => settings.HotkeyScreenshot = v));
+            Row(card, "Lưu khoảnh khắc vừa qua", Box(nameof(settings.HotkeyReplay), settings.HotkeyReplay, Hotkey.SaveReplay, v => settings.HotkeyReplay = v),
+                "Phím chạy cả khi đang ở trong game. Ô đỏ nghĩa là app khác đã giữ phím đó (Alt+F10 trùng NVIDIA ShadowPlay nếu đang bật): chọn phím khác.");
 
             var reset = new FlatButton("Khôi phục mặc định") { Size = new Size(180, 34) };
             reset.Click += (_, _) =>
@@ -184,6 +201,8 @@ namespace Recora.App.UI
                 settings.HotkeyRecord = Hotkey.Record.ToString();
                 settings.HotkeyPause = Hotkey.Pause.ToString();
                 settings.HotkeyScreenshot = Hotkey.Screenshot.ToString();
+                settings.HotkeyReplay = Hotkey.SaveReplay.ToString();
+                _boxes[nameof(settings.HotkeyReplay)].Hotkey = Hotkey.SaveReplay;
                 _boxes[nameof(settings.HotkeyRecord)].Hotkey = Hotkey.Record;
                 _boxes[nameof(settings.HotkeyPause)].Hotkey = Hotkey.Pause;
                 _boxes[nameof(settings.HotkeyScreenshot)].Hotkey = Hotkey.Screenshot;

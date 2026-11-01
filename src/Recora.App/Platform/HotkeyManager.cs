@@ -12,6 +12,7 @@ namespace Recora.App.Platform
         Record,
         Pause,
         Screenshot,
+        SaveReplay,
     }
 
     /// <summary>
