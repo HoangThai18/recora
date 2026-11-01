@@ -93,8 +93,21 @@ namespace Recora.App.Recording
         }
 
         /// <summary>Starts a segment with this plan. Returns null when frames flow, otherwise why it failed.</summary>
-        public string? TryOpenSegment(string ffmpeg, RecordingPlan plan, TimeSpan firstFrameTimeout) =>
-            TryOpen(ffmpeg, (path, pipes) => RecordingCommand.Build(plan, path, pipes), $"{plan.Backend}/{plan.Encoder.FfmpegName}", plan.Encoder.FfmpegName, audioOnly: false, firstFrameTimeout);
+        public string? TryOpenSegment(string ffmpeg, RecordingPlan plan, TimeSpan firstFrameTimeout)
+        {
+            var failure = TryOpen(ffmpeg, (path, pipes) => RecordingCommand.Build(plan, path, pipes), $"{plan.Backend}/{plan.Encoder.FfmpegName}", plan.Encoder.FfmpegName, audioOnly: false, firstFrameTimeout);
+
+            // The codec actually written, not the one asked for: H.265 falls back to H.264 on GPUs (and the CPU) that
+            // lack it, and finalizing must not tag that stream as hvc1.
+            var codec = plan.Encoder.Codec.ToString();
+            if (failure == null && Manifest.Codec != codec)
+            {
+                Manifest.Codec = codec;
+                Manifest.Save(Folder);
+            }
+
+            return failure;
+        }
 
         /// <summary>Starts a sound-only segment (one mixed track). Returns null once audio flows.</summary>
         public string? TryOpenAudioSegment(string ffmpeg, AudioFormat format, QualityPreset quality, TimeSpan timeout)

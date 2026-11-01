@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using Microsoft.VisualBasic.FileIO;
 using Recora.App.Logging;
 using Recora.App.UI.Controls;
+using Recora.Core.Ffmpeg;
 using Recora.Core.Library;
 
 namespace Recora.App.UI
@@ -20,6 +21,7 @@ namespace Recora.App.UI
         private readonly Label _summary;
         private readonly Card _card;
         private readonly FlatButton _open;
+        private readonly FlatButton _trim;
         private readonly FlatButton _reveal;
         private readonly FlatButton _delete;
 
@@ -62,14 +64,22 @@ namespace Recora.App.UI
 
             var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
             _open = new FlatButton("Mở") { Primary = true, Size = new Size(90, 34), Margin = new Padding(0, 0, 10, 0) };
+            _trim = new FlatButton("Cắt") { Size = new Size(90, 34), Margin = new Padding(0, 0, 10, 0) };
             _reveal = new FlatButton("Xem trong thư mục") { Size = new Size(170, 34), Margin = new Padding(0, 0, 10, 0) };
             _delete = new FlatButton("Xoá") { Size = new Size(90, 34), Margin = new Padding(0, 0, 10, 0) };
             var refresh = new FlatButton("Làm mới") { Size = new Size(110, 34), Margin = Padding.Empty };
             _open.Click += (_, _) => OpenSelected();
+            _trim.Click += (_, _) =>
+            {
+                if (Selected is LibraryItem item)
+                {
+                    TrimRequested?.Invoke(this, item);
+                }
+            };
             _reveal.Click += (_, _) => RevealSelected();
             _delete.Click += (_, _) => DeleteSelected();
             refresh.Click += (_, _) => Reload();
-            buttons.Controls.AddRange(new Control[] { _open, _reveal, _delete, refresh });
+            buttons.Controls.AddRange(new Control[] { _open, _trim, _reveal, _delete, refresh });
 
             _card.Body.Controls.Add(_summary);
             _card.Body.Controls.Add(_list);
@@ -82,6 +92,25 @@ namespace Recora.App.UI
                     Reload();
                 }
             };
+        }
+
+        /// <summary>"Cắt" on a video or a sound file; the controller opens the cut dialog.</summary>
+        public event EventHandler<LibraryItem>? TrimRequested;
+
+        /// <summary>Selects a file (a fresh cut) and scrolls to it.</summary>
+        public void Select(string path)
+        {
+            foreach (ListViewItem row in _list.Items)
+            {
+                if (row.Tag is LibraryItem item && string.Equals(item.Path, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    row.Selected = true;
+                    row.Focused = true;
+                    row.EnsureVisible();
+                    _list.Focus();
+                    return;
+                }
+            }
         }
 
         public void Reload()
@@ -143,6 +172,7 @@ namespace Recora.App.UI
         {
             var any = Selected != null;
             _open.Enabled = any;
+            _trim.Enabled = Selected is LibraryItem item && !item.IsImage && TrimCommand.CanTrim(item.Path);
             _reveal.Enabled = any;
             _delete.Enabled = any;
         }

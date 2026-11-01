@@ -202,6 +202,20 @@ namespace Recora.Core.Tests.Ffmpeg
         }
 
         [Fact]
+        public void SizeLimit_SharedWithEveryAudioTrack_ReachesTheEncoder()
+        {
+            var mixed = Plan() with { MaxGigabytesPerHour = 1 };
+            var separate = Plan(audio: AudioLayout.SeparateTracks) with { MaxGigabytesPerHour = 1 };
+            var silent = Plan(audio: AudioLayout.None) with { MaxGigabytesPerHour = 1 };
+
+            Assert.Equal(2062, mixed.EncodeOptions.MaxVideoKbps);
+            Assert.Equal(1902, separate.EncodeOptions.MaxVideoKbps);
+            Assert.Equal(2222, silent.EncodeOptions.MaxVideoKbps);
+            Assert.Null(Plan().EncodeOptions.MaxVideoKbps);
+            Assert.Equal("2062k", ValueAfter(Build(mixed), "-maxrate"));
+        }
+
+        [Fact]
         public void Downscale_NeverScalesUp()
         {
             var plan = Plan(scale: OutputScale.P1080);

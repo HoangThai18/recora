@@ -17,8 +17,20 @@ join() { local IFS=,; echo "$*"; }
 
 mkdir -p "$work" "$out/sources"
 tarball="ffmpeg-$FFMPEG_VERSION.tar.xz"
+
+# ffmpeg.org sometimes resets connections from CI runners (curl 35, which plain --retry does not retry). Every
+# Recora release carries the same tarball in its sources archive, so that is the fallback; the SHA-256 check below
+# makes the origin irrelevant.
+fetch() { curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$1" "$2"; }
+mirror="https://github.com/HoangThai18/recora/releases/download/$FALLBACK_RELEASE/$FALLBACK_RELEASE-ffmpeg-sources.tar.gz"
+
 if [ ! -f "$work/$tarball" ]; then
-    curl -fsSL --retry 3 -o "$work/$tarball" "https://ffmpeg.org/releases/$tarball"
+    if ! fetch "$work/$tarball" "https://ffmpeg.org/releases/$tarball"; then
+        echo "ffmpeg.org failed; using the copy in $FALLBACK_RELEASE"
+        fetch "$work/mirror.tar.gz" "$mirror"
+        tar -xzf "$work/mirror.tar.gz" -C "$work" "sources/$tarball"
+        mv "$work/sources/$tarball" "$work/$tarball"
+    fi
 fi
 echo "$FFMPEG_SHA256  $work/$tarball" | sha256sum -c -
 
@@ -77,8 +89,14 @@ cp COPYING.GPLv2 COPYING.GPLv3 COPYING.LGPLv2.1 COPYING.LGPLv3 LICENSE.md "$out/
 # GPL: ship the exact sources next to the binaries (FFmpeg tarball plus the MSYS2 source package of x264).
 cp "$work/$tarball" "$out/sources/"
 x264_version=$(pacman -Q mingw-w64-ucrt-x86_64-libx264 | awk '{print $2}')
-curl -fsSL --retry 3 -o "$out/sources/mingw-w64-x264-$x264_version.src.tar.zst" \
-    "https://repo.msys2.org/mingw/sources/mingw-w64-x264-$x264_version.src.tar.zst"
+x264_source="mingw-w64-x264-$x264_version.src.tar.zst"
+if ! fetch "$out/sources/$x264_source" "https://repo.msys2.org/mingw/sources/$x264_source"; then
+    [ -f "$work/mirror.tar.gz" ] || fetch "$work/mirror.tar.gz" "$mirror"
+    echo "repo.msys2.org failed; using the copy in $FALLBACK_RELEASE"
+    tar -xzf "$work/mirror.tar.gz" -C "$work" "sources/$x264_source" \
+        || { echo "$x264_source is not in $FALLBACK_RELEASE either" >&2; exit 1; }
+    cp "$work/sources/$x264_source" "$out/sources/$x264_source"
+fi
 
 dlls=$(objdump -p ffmpeg.exe | awk '/DLL Name/ {print $3}' | sort -u)
 {
