@@ -90,3 +90,19 @@ $process = Start-Process -FilePath $exe -ArgumentList @('--settings-roundtrip', 
 if ($process.ExitCode -ne 0) { throw "settings roundtrip failed" }
 
 Write-Host "recorder checks OK"
+
+# Light CPU profile: 60 fps at full size was asked for, a CPU encoder must have delivered at most 720p at 30 across the pause.
+if (-not $report.LightOutput -or -not (Test-Path $report.LightOutput)) { throw "light CPU recording produced no file" }
+if ($report.LightEncoder -eq 'libx264') {
+    $lightStream = (& $ffprobe -v error -select_streams v:0 -show_entries 'stream=width,height,avg_frame_rate' -of json $report.LightOutput | ConvertFrom-Json).streams[0]
+    $rate = $lightStream.avg_frame_rate.Split('/')
+    $lightFps = [double]$rate[0] / [math]::Max(1, [double]$rate[1])
+    Write-Host ("light CPU: {0}x{1} at {2:N1} fps" -f $lightStream.width, $lightStream.height, $lightFps)
+    if ($lightStream.height -gt 720) { throw "light CPU recording is $($lightStream.height) lines tall, over 720" }
+    if ($lightFps -gt 31) { throw "light CPU recording runs at $lightFps fps, over 30" }
+    $lightFrames = Join-Path $out 'light.null'
+    & $ffmpeg -v error -y -i $report.LightOutput -map 0:v:0 -f null $lightFrames
+    if ($LASTEXITCODE -ne 0) { throw "light CPU recording does not decode across the pause" }
+} else {
+    Write-Host "light CPU: skipped, encoder was $($report.LightEncoder)"
+}

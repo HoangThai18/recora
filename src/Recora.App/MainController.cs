@@ -135,6 +135,7 @@ namespace Recora.App
             _form.ShowRequested += (_, _) => ShowWindow();
             _form.FormClosing += OnFormClosing;
             Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
             _form.HandleCreated += (_, _) => ApplyCaptureExclusion();
             _form.Home.MonitorSelected += (_, device) =>
             {
@@ -280,6 +281,7 @@ namespace Recora.App
 
             _disposed = true;
             Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
 
             // Clipora lives on after Recora as a window of its own: an unsaved edit must never close with us.
             _edit?.Host.Release();
@@ -554,6 +556,20 @@ namespace Recora.App
         }
 
         /// <summary>Windows switched between light and dark apps; follow it when the look is "Theo Windows".</summary>
+        private void OnDisplaySettingsChanged(object sender, EventArgs e)
+        {
+            if (!_form.IsHandleCreated)
+            {
+                return;
+            }
+
+            _form.BeginInvoke(new Action(() =>
+            {
+                _environment?.RefreshMonitors();
+                RefreshHome();
+            }));
+        }
+
         private void OnUserPreferenceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
         {
             if (e.Category == Microsoft.Win32.UserPreferenceCategory.General && _settings.Theme == ThemeMode.System && !_disposed)
@@ -656,7 +672,7 @@ namespace Recora.App
                 var encoder = AutoEncoder();
                 var encoderText = encoder == null
                     ? "không có bộ mã hoá nào dùng được"
-                    : $"{EncoderCatalog.DisplayName(encoder.Value.Kind)} · {CodecName(encoder.Value.Codec)} · {(encoder.Value.IsHardware ? "ghi bằng GPU" : "ghi bằng CPU")}";
+                    : $"{EncoderCatalog.DisplayName(encoder.Value.Kind)} · {CodecName(encoder.Value.Codec)} · {(encoder.Value.IsHardware ? "ghi bằng GPU" : LightOnCpu() ? "ghi bằng CPU, tự giảm 720p 30 khung/giây" : "ghi bằng CPU")}";
 
                 _form.Home.ShowMonitors(
                     environment.Monitors.Select((m, i) => new MonitorTile(
@@ -1240,7 +1256,11 @@ namespace Recora.App
                 }
 
                 OpenBar(source is DeviceSource || audioOnly != null ? SelectedMonitor().Target.Bounds : source.Monitor.Bounds);
-                WarnIfRecordingOnCpu(audioOnly != null || source is DeviceSource);
+                if (audioOnly == null && source is not DeviceSource)
+                {
+                    WarnIfOnCpu(_recorder?.Status().Encoder);
+                }
+
             }
 
             if (_memory != null && _memory.Dirty)
@@ -1281,7 +1301,8 @@ namespace Recora.App
                 OutputFolder,
                 tracks,
                 audioOnly,
-                _settings.MaxGigabytesPerHour);
+                _settings.MaxGigabytesPerHour,
+                LightOnCpu());
 
         private IReadOnlyList<AudioTrackSpec> OpenAudio(List<WasapiSource> into, bool forceMixed = false)
         {
@@ -1404,10 +1425,12 @@ namespace Recora.App
         }
 
         /// <summary>Once per run: a game's frame rate drops on the CPU route, and the user can only act on it if told.</summary>
-        private void WarnIfRecordingOnCpu(bool notScreen)
+        /// <summary>Someone who picked the CPU encoder on purpose gets the size and rate they asked for.</summary>
+        private bool LightOnCpu() => _settings.LightOnCpu && _settings.Encoder != EncoderChoice.X264;
+
+        private void WarnIfOnCpu(string? encoder)
         {
-            var encoder = _recorder?.Status().Encoder;
-            if (notScreen || _cpuWarned || _settings.Encoder == EncoderChoice.X264 || !EncoderCatalog.IsCpuEncoderName(encoder))
+            if (_cpuWarned || _settings.Encoder == EncoderChoice.X264 || !EncoderCatalog.IsCpuEncoderName(encoder))
             {
                 return;
             }
@@ -1415,7 +1438,9 @@ namespace Recora.App
             _cpuWarned = true;
             _tray.Notify(
                 "Recora đang ghi bằng CPU",
-                "GPU của máy chưa ghi được nên game có thể tụt FPS. Giảm còn 30 khung hình mỗi giây hoặc 720p ở phần Cài đặt sẽ nhẹ hơn.",
+                _settings.LightOnCpu
+                    ? "GPU của máy chưa ghi được nên Recora tự giảm còn 720p, 30 khung/giây để game đỡ tụt FPS. Đổi ở Cài đặt, mục Mã hoá."
+                    : "GPU của máy chưa ghi được nên game có thể tụt FPS. Giảm còn 30 khung/giây hoặc 720p ở phần Cài đặt sẽ nhẹ hơn.",
                 ToolTipIcon.Warning);
         }
 
@@ -1518,6 +1543,7 @@ namespace Recora.App
                 _replaySignature = ReplaySignature();
                 await Task.Run(() => replay.Start(request, seconds));
                 _replayFailures = 0;
+                WarnIfOnCpu(replay.EncoderName);
                 if (_memory != null && _memory.Dirty)
                 {
                     SaveSettings();
@@ -1738,7 +1764,7 @@ namespace Recora.App
         private string ReplaySignature() => string.Join("|", new object[]
         {
             _settings.MonitorDevice, _settings.Codec, _settings.Encoder, _settings.Quality, _settings.Fps, _settings.Scale,
-            _settings.DrawCursor, _settings.MaxGigabytesPerHour, _settings.SystemAudio, _settings.SystemAudioDevice,
+            _settings.DrawCursor, LightOnCpu(), _settings.MaxGigabytesPerHour, _settings.SystemAudio, _settings.SystemAudioDevice,
             _settings.SystemVolume, _settings.Microphone, _settings.MicrophoneDevice, _settings.MicrophoneVolume,
             _settings.SeparateTracks, _settings.OutputFolder, _settings.ReplaySeconds,
             _settings.MicProcessing.GainDb, _settings.MicProcessing.HighPass, _settings.MicProcessing.NoiseGate,
@@ -2039,8 +2065,9 @@ namespace Recora.App
 
             UpdateMeters();
 
-            // The preview is skipped while recording: the clock shows instead, and a game keeps every bit of GPU time.
-            var idle = _recorder == null || _recorder.State == SessionState.Idle || _recorder.State == SessionState.Failed;
+            // The preview reads the whole desktop through GDI, which stalls a running game once a second. It only runs with
+            // Recora in front, and never while recording: the clock shows instead.
+            var idle = RecoraInFront() && (_recorder == null || _recorder.State == SessionState.Idle || _recorder.State == SessionState.Failed);
             var screenMode = _form.Mode != CaptureModeChoice.Device && _form.Mode != CaptureModeChoice.AudioOnly;
             if (idle && screenMode && _environment != null && _liveTicks % 10 == 1)
             {

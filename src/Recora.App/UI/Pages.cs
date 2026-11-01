@@ -139,12 +139,22 @@ namespace Recora.App.UI
             _mode = Caption(string.Empty, Theme.Title, Theme.Accent, 2);
             _source = Caption(string.Empty, Theme.Body, Theme.Muted, 2);
             _encoder = Caption(string.Empty, Theme.Small, Theme.Muted, 12);
-            Monitors = new MonitorMap { Size = new Size(240, 64), Margin = new Padding(0, 0, 0, 12) };
-            Monitors.Picked += (_, device) =>
+            Monitors = new ComboBox
             {
-                if (!_filling)
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Theme.Surface,
+                ForeColor = Theme.Text,
+                Font = Theme.Body,
+                Width = 300,
+                Margin = new Padding(0, 0, 0, 12),
+                AccessibleName = "Màn hình cần ghi",
+            };
+            Monitors.SelectionChangeCommitted += (_, _) =>
+            {
+                if (!_filling && Monitors.SelectedItem is MonitorItem item)
                 {
-                    MonitorSelected?.Invoke(this, device);
+                    MonitorSelected?.Invoke(this, item.DeviceName);
                 }
             };
 
@@ -341,7 +351,7 @@ namespace Recora.App.UI
 
         public PreviewBox Preview { get; }
 
-        public MonitorMap Monitors { get; }
+        public ComboBox Monitors { get; }
 
         public ToggleSwitch SystemAudio { get; }
 
@@ -401,9 +411,32 @@ namespace Recora.App.UI
         /// <summary>Fills the screen picker without raising <see cref="MonitorSelected"/>.</summary>
         public void ShowMonitors(IReadOnlyList<MonitorTile> monitors, string selectedDevice)
         {
+            // Home refreshes often: rebuilding the list under an open dropdown would close it in the user's hand.
+            if (Monitors.DroppedDown)
+            {
+                return;
+            }
+
             _filling = true;
-            Monitors.SetTiles(monitors, selectedDevice);
-            _filling = false;
+            try
+            {
+                var items = monitors.Select(m => new MonitorItem(m)).ToList();
+                if (!Monitors.Items.Cast<MonitorItem>().Select(i => i.DeviceName + i.Text).SequenceEqual(items.Select(i => i.DeviceName + i.Text)))
+                {
+                    Monitors.Items.Clear();
+                    Monitors.Items.AddRange(items.Cast<object>().ToArray());
+                }
+
+                var index = items.FindIndex(i => i.DeviceName == selectedDevice);
+                if (Monitors.Items.Count > 0)
+                {
+                    Monitors.SelectedIndex = Math.Max(0, index);
+                }
+            }
+            finally
+            {
+                _filling = false;
+            }
         }
 
         private static FlowLayoutPanel Row(Control toggle, Control meter, int bottom)
@@ -424,6 +457,21 @@ namespace Recora.App.UI
         }
 
         /// <summary>Preview on the left at 16:9, details on the right; stacks when the window is narrow.</summary>
+        private sealed class MonitorItem
+        {
+            public MonitorItem(MonitorTile monitor)
+            {
+                DeviceName = monitor.DeviceName;
+                Text = $"Màn hình {monitor.Number} · {monitor.Bounds.Width}×{monitor.Bounds.Height}{(monitor.IsPrimary ? " (màn hình chính)" : string.Empty)}";
+            }
+
+            public string DeviceName { get; }
+
+            public string Text { get; }
+
+            public override string ToString() => Text;
+        }
+
         private sealed class WindowItem
         {
             public WindowItem(Core.Capture.OpenWindow? window, string text, bool closed = false)

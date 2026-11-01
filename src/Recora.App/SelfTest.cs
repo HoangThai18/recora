@@ -125,6 +125,10 @@ namespace Recora.App
             RecordWithPause(directory, report);
             report.Ok = report.Ok && report.PausedOutput != null;
 
+            // The CPU route with a game in mind: smaller and slower, and the same across a pause.
+            RecordLightOnCpu(directory, report);
+            report.Ok = report.Ok && report.LightOutput != null;
+
             // FFmpeg dying under a live recording, as when a game switches to exclusive fullscreen.
             RecordThroughCaptureLoss(directory, report);
             report.Ok = report.Ok && report.HealedOutput != null;
@@ -295,6 +299,8 @@ namespace Recora.App
         [DataMember(Order = 20)] public bool AudioDrained { get; set; }
         [DataMember(Order = 21)] public List<string> Monitors { get; set; } = new List<string>();
         [DataMember(Order = 22)] public string? AudioDevices { get; set; }
+        [DataMember(Order = 29)] public string? LightOutput { get; set; }
+        [DataMember(Order = 30)] public string? LightEncoder { get; set; }
         [DataMember(Order = 23)] public string? PausedOutput { get; set; }
         [DataMember(Order = 24)] public double PausedSeconds { get; set; }
         [DataMember(Order = 25)] public string? PausedEncoder { get; set; }

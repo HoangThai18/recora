@@ -171,7 +171,7 @@ namespace Recora.Core.Tests.Ffmpeg
         {
             var args = Build(Plan(kind: EncoderKind.Amf, scale: OutputScale.P720) with { DownloadFrames = true });
 
-            Assert.Contains("scale=1280:720:flags=bicubic:", ValueAfter(args, "-vf"));
+            Assert.Contains("scale=1280:720:flags=fast_bilinear:", ValueAfter(args, "-vf"));
             Assert.DoesNotContain("scale_d3d11", ValueAfter(args, "-vf"));
         }
 

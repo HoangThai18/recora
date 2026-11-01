@@ -17,6 +17,9 @@ namespace Recora.Core.Ffmpeg
 
         public const int AudioChannels = 2;
 
+        /// <summary>Downloaded game frames are scaled next to the game on the CPU: speed beats a slightly sharper picture.</summary>
+        private const string FastScaler = "fast_bilinear";
+
         public static FfmpegArgs Build(RecordingPlan plan, string segmentPath, IReadOnlyList<string> audioPipes) =>
             // If Recora or the PC dies mid-recording, the segment must already be on disk (BR-01): every packet is
             // handed to the OS as soon as it is muxed (otherwise FFmpeg holds 32 KB, a short recording's whole file),
@@ -172,7 +175,7 @@ namespace Recora.Core.Ffmpeg
 
             if (plan.DownloadFrames)
             {
-                return "hwdownload,format=bgra," + CpuConversion(kind, scaled, width, height);
+                return "hwdownload,format=bgra," + CpuConversion(kind, scaled, width, height, FastScaler);
             }
 
             switch (kind)
@@ -187,7 +190,7 @@ namespace Recora.Core.Ffmpeg
                     return $"scale_d3d11={size}format=nv12,hwmap=derive_device=qsv,format=qsv";
 
                 default:
-                    return "hwdownload,format=bgra," + CpuConversion(kind, scaled, width, height);
+                    return "hwdownload,format=bgra," + CpuConversion(kind, scaled, width, height, FastScaler);
             }
         }
 
@@ -202,9 +205,9 @@ namespace Recora.Core.Ffmpeg
             return $"scale=-2:{height},format={format}";
         }
 
-        private static string CpuConversion(EncoderKind kind, bool scaled, int width, int height)
+        private static string CpuConversion(EncoderKind kind, bool scaled, int width, int height, string scaler = "bicubic")
         {
-            var size = scaled ? Invariant($"{width}:{height}:flags=bicubic:") : string.Empty;
+            var size = scaled ? Invariant($"{width}:{height}:flags={scaler}:") : string.Empty;
             var format = kind == EncoderKind.X264 ? "yuv420p" : "nv12";
             return $"scale={size}out_color_matrix=bt709:out_range=tv,format={format}";
         }

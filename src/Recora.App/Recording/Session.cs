@@ -95,7 +95,7 @@ namespace Recora.App.Recording
         /// <summary>Starts a segment with this plan. Returns null when frames flow, otherwise why it failed.</summary>
         public string? TryOpenSegment(string ffmpeg, RecordingPlan plan, TimeSpan firstFrameTimeout)
         {
-            var failure = TryOpen(ffmpeg, (path, pipes) => RecordingCommand.Build(plan, path, pipes), $"{plan.Backend}/{plan.Encoder.FfmpegName}{(plan.DownloadFrames ? " (system memory)" : string.Empty)}", plan.Encoder.FfmpegName, audioOnly: false, firstFrameTimeout, !plan.Encoder.IsHardware);
+            var failure = TryOpen(ffmpeg, (path, pipes) => RecordingCommand.Build(plan, path, pipes), $"{plan.Backend}/{plan.Encoder.FfmpegName}{(plan.DownloadFrames ? " (system memory)" : string.Empty)}", plan.Encoder.FfmpegName, audioOnly: false, firstFrameTimeout, plan.UsesCpu);
 
             // The codec actually written, not the one asked for: H.265 falls back to H.264 on GPUs (and the CPU) that
             // lack it, and finalizing must not tag that stream as hvc1.

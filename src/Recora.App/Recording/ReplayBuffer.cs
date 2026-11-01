@@ -246,7 +246,7 @@ namespace Recora.App.Recording
             FfmpegProcess process;
             try
             {
-                process = FfmpegProcess.Start(_environment.FfmpegPath, ReplayCommand.Build(plan, folder, pump.PipePaths, seconds), "replay", !plan.Encoder.IsHardware);
+                process = FfmpegProcess.Start(_environment.FfmpegPath, ReplayCommand.Build(plan, folder, pump.PipePaths, seconds), "replay", plan.UsesCpu);
             }
             catch
             {

@@ -30,7 +30,8 @@ namespace Recora.App.Recording
         string OutputFolder,
         IReadOnlyList<AudioTrackSpec> AudioTracks,
         AudioFormat? AudioOnly = null,
-        int MaxGigabytesPerHour = 0);
+        int MaxGigabytesPerHour = 0,
+        bool LightOnCpu = false);
 
     internal sealed record SavedRecording(string Path, TimeSpan Duration, long Bytes);
 
@@ -296,6 +297,13 @@ namespace Recora.App.Recording
 
                 Log.Warn($"audio recording ({format}) failed: {failure}");
                 throw new RecoraException("audio_failed", $"{format}: {failure}");
+            }
+
+            // Segments are joined without re-encoding, so a resume keeps the first segment's size and rate even if another
+            // encoder takes over; a size change inside the file would break the video.
+            if (session.LivePlan is RecordingPlan live)
+            {
+                request = request with { Fps = live.Fps, Scale = live.Scale, LightOnCpu = false };
             }
 
             CandidateRunner.Run(_environment, _memory, request, plan => session.TryOpenSegment(_environment.FfmpegPath, plan, FirstFrameTimeout), only);

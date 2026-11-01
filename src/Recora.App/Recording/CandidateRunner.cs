@@ -31,11 +31,14 @@ namespace Recora.App.Recording
                 {
                     string? outcome = null;
                     var texturesFailed = false;
+                    var (fps, scale) = request.LightOnCpu && !encoder.IsHardware
+                        ? LightCpuProfile.Apply(request.Fps, request.Scale)
+                        : (request.Fps, request.Scale);
 
                     foreach (var download in FrameRoutes.For(backend, encoder.Kind, memory.TextureInputFailed(encoder)))
                     {
                         var plan = new RecordingPlan(
-                            request.Source, backend, encoder, request.Quality, request.Fps, request.Scale, request.DrawCursor, Layout(request), request.MaxGigabytesPerHour, download);
+                            request.Source, backend, encoder, request.Quality, fps, scale, request.DrawCursor, Layout(request), request.MaxGigabytesPerHour, download);
                         outcome = tryOpen(plan);
 
                         if (outcome == null)

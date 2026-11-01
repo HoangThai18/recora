@@ -196,6 +196,9 @@ namespace Recora.Core.Settings
         [DataMember(Name = "screenshotFormat", Order = 22)]
         private string ScreenshotFormatText { get => ScreenshotFormat.ToString(); set => ScreenshotFormat = Parse(value, ScreenshotFormat.Png); }
 
+        /// <summary>When only the CPU can encode, record at most 720p at 30 frames a second so a game keeps its frame rate.</summary>
+        [DataMember(Name = "lightOnCpu", Order = 46)] public bool LightOnCpu { get; set; } = true;
+
         /// <summary>Clamps values a hand-edited or older file could carry outside the supported range.</summary>
         public AppSettings Normalize()
         {

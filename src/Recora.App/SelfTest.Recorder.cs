@@ -89,6 +89,43 @@ namespace Recora.App
         }
 
         /// <summary>
+        /// Asks for 60 frames a second at full size with the light CPU profile on, and pauses halfway. On a runner without
+        /// a GPU encoder CI then checks the MP4 is at most 720p at 30: both segments, or the join would break.
+        /// </summary>
+        private static void RecordLightOnCpu(string directory, SelfTestReport report)
+        {
+            var folder = Path.Combine(directory, "light");
+            var (recorder, environment) = NewRecorder();
+            var request = Request(environment, folder) with { Fps = 60, LightOnCpu = true };
+
+            var run = Task.Run(async () =>
+            {
+                await recorder.StartAsync(request).ConfigureAwait(false);
+                ThrowIfNot(recorder, SessionState.Recording, "start");
+                report.LightEncoder = recorder.Status().Encoder;
+                Thread.Sleep(1500);
+                await recorder.PauseAsync().ConfigureAwait(false);
+                ThrowIfNot(recorder, SessionState.Paused, "pause");
+                await recorder.ResumeAsync().ConfigureAwait(false);
+                ThrowIfNot(recorder, SessionState.Recording, "resume");
+                Thread.Sleep(1500);
+                return await recorder.StopAsync().ConfigureAwait(false);
+            });
+
+            while (!run.IsCompleted)
+            {
+                Application.DoEvents();
+                Thread.Sleep(5);
+            }
+
+            report.LightOutput = run.GetAwaiter().GetResult()?.Path;
+            if (report.LightOutput == null)
+            {
+                throw new InvalidOperationException("light CPU recording produced no file");
+            }
+        }
+
+        /// <summary>
         /// Black board 2 s, then FFmpeg is killed under the live recording (what Windows does to every screen capture
         /// when a game enters exclusive fullscreen), the board turns white, 3 s later stop. The recorder must have
         /// started a new segment by itself: the file holds both black and white and lasts close to 5 s.

@@ -30,6 +30,19 @@ namespace Recora.Core.Recording
         Mkv,
     }
 
+    /// <summary>What a recording may cost when the CPU has to encode it next to a game.</summary>
+    public static class LightCpuProfile
+    {
+        public const int MaxFps = 30;
+
+        /// <summary>
+        /// At most 720p at 30 frames a second, under a quarter of the pixels of 1080p60: x264's load follows the pixels,
+        /// and no encoder setting saves as much. Choices already below that stay as they are.
+        /// </summary>
+        public static (int Fps, OutputScale Scale) Apply(int fps, OutputScale scale) =>
+            (Math.Min(fps, MaxFps), scale == OutputScale.Original || scale == OutputScale.P1080 ? OutputScale.P720 : scale);
+    }
+
     /// <summary>Everything that decides one segment's FFmpeg command, already resolved to a backend and an encoder.</summary>
     /// <param name="MaxGigabytesPerHour">The user's size limit (0 for none), shared between the picture and the sound.</param>
     /// <param name="DownloadFrames">Hand a GPU encoder frames from system memory instead of the capture's D3D11 textures.</param>
@@ -45,6 +58,9 @@ namespace Recora.Core.Recording
         int MaxGigabytesPerHour = 0,
         bool DownloadFrames = false)
     {
+        /// <summary>Frames or encoding pass through the CPU, so this recording competes with a game for its cores.</summary>
+        public bool UsesCpu => !Encoder.IsHardware || DownloadFrames || Backend == CaptureBackend.Gdigrab;
+
         public int AudioTrackCount => Audio switch
         {
             AudioLayout.None => 0,

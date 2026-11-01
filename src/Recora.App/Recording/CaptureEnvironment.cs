@@ -28,7 +28,7 @@ namespace Recora.App.Recording
 
         public IReadOnlyCollection<string> Encoders { get; }
 
-        public IReadOnlyList<MonitorInfo> Monitors { get; }
+        public IReadOnlyList<MonitorInfo> Monitors { get; private set; }
 
         /// <summary>Identifies GPUs and FFmpeg build: a cached encoder probe is only trusted while this stays the same.</summary>
         public string Fingerprint =>
@@ -50,6 +50,22 @@ namespace Recora.App.Recording
             }
 
             return new CaptureEnvironment(ffmpeg, version, ProbeCommand.Capabilities(filters), encoders, monitors);
+        }
+
+        /// <summary>A screen was plugged in or removed, or a game changed its resolution: sizes and DXGI indexes moved.</summary>
+        public void RefreshMonitors()
+        {
+            var monitors = MonitorService.List();
+            if (monitors.Count == 0)
+            {
+                return;
+            }
+
+            Monitors = monitors;
+            foreach (var monitor in monitors)
+            {
+                Log.Info($"monitor {monitor.Name}: {monitor.Target.DeviceName} {monitor.Target.Bounds} {monitor.AdapterName} dda={monitor.Target.DdaOutputIndex?.ToString() ?? "-"}");
+            }
         }
 
         public MonitorInfo MonitorFor(string deviceName) =>
