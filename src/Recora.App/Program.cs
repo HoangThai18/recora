@@ -87,7 +87,7 @@ namespace Recora.App
             {
                 var scale = float.Parse(OptionValue(args, "--ui-scale") ?? "1", CultureInfo.InvariantCulture);
                 var page = (PageKind)Enum.Parse(typeof(PageKind), OptionValue(args, "--page") ?? nameof(PageKind.Home), ignoreCase: true);
-                return UiScreenshot.Run(screenshot, scale, page, OptionValue(args, "--library"), args.Contains("--recording"), OptionValue(args, "--dialog"));
+                return UiScreenshot.Run(screenshot, scale, page, OptionValue(args, "--library"), args.Contains("--recording"), OptionValue(args, "--dialog"), args.Contains("--demo"));
             }
 
             return RunApp(args.Contains("--minimized"));

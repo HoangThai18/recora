@@ -63,6 +63,17 @@ namespace Recora.App.UI
             Clock = new Font("Consolas", 24f * uiScale, FontStyle.Bold, GraphicsUnit.Point);
         }
 
+        /// <summary>The colour <paramref name="amount"/> of the way from <paramref name="from"/> to <paramref name="to"/>.</summary>
+        public static Color Blend(Color from, Color to, double amount)
+        {
+            var t = amount < 0 ? 0 : amount > 1 ? 1 : amount;
+            int Mix(int a, int b) => (int)Math.Round(a + (b - a) * t);
+            return Color.FromArgb(Mix(from.A, to.A), Mix(from.R, to.R), Mix(from.G, to.G), Mix(from.B, to.B));
+        }
+
+        public static Color Fade(Color color, double opacity) =>
+            Color.FromArgb((int)Math.Round(color.A * (opacity < 0 ? 0 : opacity > 1 ? 1 : opacity)), color);
+
         public static Color FromHex(int rgb) => Color.FromArgb(255, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
 
         public static GraphicsPath RoundedRect(RectangleF rect, float radius)

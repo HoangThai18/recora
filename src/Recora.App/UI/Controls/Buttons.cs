@@ -1,11 +1,14 @@
+using System;
 using System.Drawing;
 using System.Windows.Forms;
+using Recora.Core.Animation;
 
 namespace Recora.App.UI.Controls
 {
     /// <summary>A capture mode in the top bar: icon above label, a soft blue tile when selected.</summary>
     internal sealed class ModeButton : PaintedButton
     {
+        private readonly Tween _selection = new Tween(0);
         private bool _selected;
 
         public ModeButton(IconKind icon, string text)
@@ -25,27 +28,33 @@ namespace Recora.App.UI.Controls
             {
                 _selected = value;
                 AccessibleDescription = value ? "Đang chọn" : null;
-                Invalidate();
+                Animator.Animate(this, _selection, value ? 1 : 0, 200);
             }
         }
 
         protected override void PaintButton(Graphics g, RectangleF b)
         {
+            var chosen = (float)_selection.Value;
             var tile = RectangleF.Inflate(b, -2 * Dpi, -3 * Dpi);
 
-            if (_selected)
+            var hover = HoverAmount * (1 - chosen);
+            if (hover > 0.01f)
             {
-                Theme.FillRounded(g, Theme.AccentSoft, tile, 8 * Dpi);
-                Theme.StrokeRounded(g, Theme.Accent, 1.2f * Dpi, tile, 8 * Dpi);
-            }
-            else if (Hover)
-            {
-                Theme.FillRounded(g, Theme.AccentHover, tile, 8 * Dpi);
+                Theme.FillRounded(g, Theme.Fade(Theme.AccentHover, hover), tile, 8 * Dpi);
             }
 
-            var color = _selected ? Theme.Accent : Theme.Text;
+            if (chosen > 0.01f)
+            {
+                // The tile grows out from the centre as it is chosen.
+                var grown = RectangleF.Inflate(tile, -tile.Width * 0.12f * (1 - chosen), -tile.Height * 0.12f * (1 - chosen));
+                Theme.FillRounded(g, Theme.Fade(Theme.AccentSoft, chosen), grown, 8 * Dpi);
+                Theme.StrokeRounded(g, Theme.Fade(Theme.Accent, chosen), 1.2f * Dpi, grown, 8 * Dpi);
+            }
+
+            var color = Theme.Blend(Theme.Text, Theme.Accent, chosen);
             var iconSize = 22 * Dpi;
-            Icons.Draw(g, IconKind, new RectangleF(b.X + (b.Width - iconSize) / 2, b.Y + 9 * Dpi, iconSize, iconSize), color);
+            var lift = 2 * Dpi * HoverAmount;
+            Icons.Draw(g, IconKind, new RectangleF(b.X + (b.Width - iconSize) / 2, b.Y + 9 * Dpi - lift, iconSize, iconSize), color);
             DrawCenteredText(g, Text, Theme.Small, color, new RectangleF(b.X, b.Y + 34 * Dpi, b.Width, b.Height - 38 * Dpi));
         }
     }
@@ -53,6 +62,7 @@ namespace Recora.App.UI.Controls
     /// <summary>A page in the left sidebar: icon and label, an accent bar marks the open page.</summary>
     internal sealed class NavButton : PaintedButton
     {
+        private readonly Tween _selection = new Tween(0);
         private bool _selected;
 
         public NavButton(IconKind icon, string text)
@@ -70,27 +80,33 @@ namespace Recora.App.UI.Controls
             set
             {
                 _selected = value;
-                Invalidate();
+                Animator.Animate(this, _selection, value ? 1 : 0, 220);
             }
         }
 
         protected override void PaintButton(Graphics g, RectangleF b)
         {
+            var chosen = (float)_selection.Value;
             var row = new RectangleF(b.X + 8 * Dpi, b.Y + 2 * Dpi, b.Width - 16 * Dpi, b.Height - 4 * Dpi);
 
-            if (_selected)
+            var hover = HoverAmount * (1 - chosen);
+            if (hover > 0.01f)
             {
-                Theme.FillRounded(g, Theme.Surface, row, 8 * Dpi);
-                Theme.FillRounded(g, Theme.Accent, new RectangleF(row.X, row.Y + 7 * Dpi, 3 * Dpi, row.Height - 14 * Dpi), 1.5f * Dpi);
-            }
-            else if (Hover)
-            {
-                Theme.FillRounded(g, Theme.AccentHover, row, 8 * Dpi);
+                Theme.FillRounded(g, Theme.Fade(Theme.AccentHover, hover), row, 8 * Dpi);
             }
 
-            var color = _selected ? Theme.Accent : Theme.Text;
+            if (chosen > 0.01f)
+            {
+                // The white row fades in and the accent bar grows from the middle.
+                Theme.FillRounded(g, Theme.Fade(Theme.Surface, chosen), row, 8 * Dpi);
+                var barHeight = (row.Height - 14 * Dpi) * chosen;
+                Theme.FillRounded(g, Theme.Accent, new RectangleF(row.X, row.Y + (row.Height - barHeight) / 2, 3 * Dpi, barHeight), 1.5f * Dpi);
+            }
+
+            var color = Theme.Blend(Theme.Text, Theme.Accent, chosen);
             var iconSize = 18 * Dpi;
-            Icons.Draw(g, IconKind, new RectangleF(row.X + 12 * Dpi, row.Y + (row.Height - iconSize) / 2, iconSize, iconSize), color);
+            var nudge = 2 * Dpi * HoverAmount * (1 - chosen);
+            Icons.Draw(g, IconKind, new RectangleF(row.X + 12 * Dpi + nudge, row.Y + (row.Height - iconSize) / 2, iconSize, iconSize), color);
 
             var textBox = Rectangle.Round(new RectangleF(row.X + 40 * Dpi, row.Y, row.Width - 44 * Dpi, row.Height));
             TextRenderer.DrawText(g, Text, _selected ? Theme.BodyBold : Theme.Body, textBox, color,
@@ -108,6 +124,9 @@ namespace Recora.App.UI.Controls
     /// <summary>The big red button: a dot to start, a square to stop. Pausing is a separate button next to it.</summary>
     internal sealed class RecordButton : PaintedButton
     {
+        private static readonly TimeSpan Breath = TimeSpan.FromMilliseconds(1600);
+        private readonly object _pulse = new object();
+        private readonly Tween _morph = new Tween(0);
         private RecordState _state;
         private string _shortcut = "F12";
 
@@ -134,19 +153,35 @@ namespace Recora.App.UI.Controls
             {
                 _state = value;
                 Text = (value == RecordState.Idle ? "Ghi" : "Dừng") + " (" + _shortcut + ")";
-                Invalidate();
+                Animator.Animate(this, _morph, value == RecordState.Idle ? 0 : 1, 260);
+                StartBreathing();
+            }
+        }
+
+        /// <summary>Keeps the halo moving while recording and on screen; the animator stops it when hidden or idle.</summary>
+        private void StartBreathing()
+        {
+            if (_state == RecordState.Recording && !Animator.IsLooping(_pulse))
+            {
+                Animator.Loop(this, _pulse, () => _state == RecordState.Recording);
             }
         }
 
         protected override void PaintButton(Graphics g, RectangleF b)
         {
-            var diameter = System.Math.Min(b.Width, b.Height) - 6 * Dpi;
+            StartBreathing();
+            var diameter = Math.Min(b.Width, b.Height) - 6 * Dpi;
+            var press = Pressed ? 0.94f : 1f;
+            diameter *= press;
             var circle = new RectangleF(b.X + (b.Width - diameter) / 2, b.Y + (b.Height - diameter) / 2, diameter, diameter);
-            var fill = Pressed || Hover ? Theme.RecordHover : Theme.Record;
+            var fill = Theme.Blend(Theme.Record, Theme.RecordHover, Pressed ? 1 : HoverAmount);
 
-            using (var shadow = new SolidBrush(Color.FromArgb(40, Theme.Record)))
+            // While recording the halo breathes, so the window says "recording" even from the corner of an eye.
+            var breathing = _state == RecordState.Recording && Animator.Enabled ? (float)Easing.Pulse(Animator.Now, Breath) : 0f;
+            var halo = (3 + 5 * breathing) * Dpi;
+            using (var shadow = new SolidBrush(Color.FromArgb((int)(40 + 30 * (1 - breathing)), Theme.Record)))
             {
-                g.FillEllipse(shadow, RectangleF.Inflate(circle, 3 * Dpi, 3 * Dpi));
+                g.FillEllipse(shadow, RectangleF.Inflate(circle, halo, halo));
             }
 
             using (var brush = new SolidBrush(fill))
@@ -154,8 +189,18 @@ namespace Recora.App.UI.Controls
                 g.FillEllipse(brush, circle);
             }
 
+            // The dot turns into the stop square: both are drawn, crossfading as the state changes.
+            var morph = (float)_morph.Value;
             var glyph = RectangleF.Inflate(circle, -diameter * 0.27f, -diameter * 0.27f);
-            Icons.Draw(g, _state == RecordState.Idle ? IconKind.Record : IconKind.Stop, glyph, Color.White);
+            if (morph < 0.99f)
+            {
+                Icons.Draw(g, IconKind.Record, RectangleF.Inflate(glyph, -glyph.Width * 0.3f * morph, -glyph.Height * 0.3f * morph), Theme.Fade(Color.White, 1 - morph));
+            }
+
+            if (morph > 0.01f)
+            {
+                Icons.Draw(g, IconKind.Stop, RectangleF.Inflate(glyph, -glyph.Width * 0.3f * (1 - morph), -glyph.Height * 0.3f * (1 - morph)), Theme.Fade(Color.White, morph));
+            }
         }
     }
 
@@ -193,11 +238,11 @@ namespace Recora.App.UI.Controls
 
         protected override void PaintButton(Graphics g, RectangleF b)
         {
-            var diameter = System.Math.Min(b.Width, b.Height) - 8 * Dpi;
+            var diameter = (Math.Min(b.Width, b.Height) - 8 * Dpi) * (Pressed ? 0.94f : 1f);
             var circle = new RectangleF(b.X + (b.Width - diameter) / 2, b.Y + (b.Height - diameter) / 2, diameter, diameter);
             var enabledColor = Enabled ? _tint : Theme.Border;
 
-            using (var brush = new SolidBrush(Hover && Enabled ? Theme.AccentHover : Theme.Surface))
+            using (var brush = new SolidBrush(Enabled ? Theme.Blend(Theme.Surface, Theme.AccentHover, HoverAmount) : Theme.Surface))
             {
                 g.FillEllipse(brush, circle);
             }
@@ -230,13 +275,16 @@ namespace Recora.App.UI.Controls
 
         protected override void PaintButton(Graphics g, RectangleF b)
         {
-            var box = RectangleF.Inflate(b, -1 * Dpi, -1 * Dpi);
-            var fill = Primary ? (Hover ? Theme.FromHex(0x15528D) : Theme.Accent) : (Hover ? Theme.AccentHover : Theme.Surface);
+            var shrink = Pressed ? 1.5f * Dpi : 0f;
+            var box = RectangleF.Inflate(b, -1 * Dpi - shrink, -1 * Dpi - shrink);
+            var fill = Primary
+                ? Theme.Blend(Theme.Accent, Theme.FromHex(0x15528D), HoverAmount)
+                : Theme.Blend(Theme.Surface, Theme.AccentHover, HoverAmount);
             Theme.FillRounded(g, fill, box, 7 * Dpi);
 
             if (!Primary)
             {
-                Theme.StrokeRounded(g, Theme.Border, 1.2f * Dpi, box, 7 * Dpi);
+                Theme.StrokeRounded(g, Theme.Blend(Theme.Border, Theme.Accent, HoverAmount * 0.6), 1.2f * Dpi, box, 7 * Dpi);
             }
 
             DrawCenteredText(g, Text, Font, Primary ? Color.White : (Enabled ? Theme.Text : Theme.Muted), box);
