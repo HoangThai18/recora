@@ -3,7 +3,7 @@ id: P4-T06
 title: "App: thử micro, thử loa, chỉnh micro ở trang Âm thanh"
 phase: P4
 lane: DESKTOP
-status: todo
+status: review
 deps: [P4-T03]
 touches: [src/Recora.App/Audio/**, src/Recora.App/UI/SettingsPages.cs, src/Recora.App/UI/**, src/Recora.App/MainController.cs, src/Recora.App/SelfTest*.cs]
 size: M

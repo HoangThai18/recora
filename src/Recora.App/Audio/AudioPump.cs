@@ -41,6 +41,34 @@ namespace Recora.App.Audio
     }
 
     /// <summary>
+    /// The microphone through the user's chain (gain, rumble filter, gate, compressor, limiter) before it is mixed.
+    /// Processing is per sample with no look-ahead, so it adds no delay against the picture.
+    /// </summary>
+    internal sealed class ProcessedInput : IAudioInput
+    {
+        private readonly IAudioInput _inner;
+        private readonly MicProcessor _processor;
+
+        public ProcessedInput(IAudioInput inner, MicProcessor processor)
+        {
+            _inner = inner;
+            _processor = processor;
+        }
+
+        public void Read(float[] stereo, int frames)
+        {
+            _inner.Read(stereo, frames);
+            _processor.Process(stereo, frames);
+        }
+
+        public void Reset()
+        {
+            _inner.Reset();
+            _processor.Reset();
+        }
+    }
+
+    /// <summary>
     /// A sine tone for tests. With <see cref="OnsetFrame"/> set it stays silent until that many frames after the pipe
     /// connected, which lets the selftest put a beep at a known moment and measure audio/video sync against a flash.
     /// </summary>

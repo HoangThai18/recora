@@ -16,6 +16,7 @@ using Recora.App.Recording;
 using Recora.App.UI;
 using Recora.App.UI.Controls;
 using Recora.Core;
+using Recora.Core.Audio;
 using Recora.Core.Capture;
 using Recora.Core.Encoding;
 using Recora.Core.Ffmpeg;
@@ -318,7 +319,95 @@ namespace Recora.App
         {
             var page = new AudioPage(_settings, AudioDevices.Speakers(), AudioDevices.Microphones());
             page.Changed += (_, _) => SettingsChanged();
+            page.TestSpeaker.Click += async (_, _) => await TestSpeaker(page);
+            page.TestMicrophone.Click += async (_, _) => await TestMicrophone(page);
             return page;
+        }
+
+        /// <summary>A chime on the chosen speakers, left then right.</summary>
+        private async Task TestSpeaker(AudioPage page)
+        {
+            if (Busy)
+            {
+                page.ShowTest("Recora đang ghi: thử loa sau khi dừng, kẻo tiếng thử lọt vào video.", running: false);
+                return;
+            }
+
+            var speaker = AudioDevices.Resolve(DataFlow.Render, _settings.SystemAudioDevice);
+            if (speaker == null)
+            {
+                page.ShowTest("Không tìm thấy loa hay tai nghe nào.", running: false);
+                return;
+            }
+
+            page.ShowTest($"Đang phát trên {speaker.FriendlyName}: bên trái, rồi bên phải…", running: true);
+            try
+            {
+                await Task.Run(() => AudioCheck.Play(speaker, AudioCheck.Chime(), System.Threading.CancellationToken.None));
+                page.ShowTest("Nghe tiếng ở bên trái rồi bên phải là đúng. Không nghe thấy: chọn lại thiết bị phát ở trên.", running: false);
+            }
+            catch (Exception error) when (error is COMException || error is InvalidOperationException || error is ArgumentException)
+            {
+                Log.Error("speaker test failed", error);
+                page.ShowTest("Không phát được trên thiết bị này (đang bị app khác giữ hoặc đã rút).", running: false);
+            }
+            finally
+            {
+                speaker.Dispose();
+            }
+        }
+
+        /// <summary>Five seconds of the chosen microphone, played back after the same chain a recording uses.</summary>
+        private async Task TestMicrophone(AudioPage page)
+        {
+            if (Busy)
+            {
+                page.ShowTest("Recora đang ghi: thử micro sau khi dừng.", running: false);
+                return;
+            }
+
+            var microphone = AudioDevices.Resolve(DataFlow.Capture, _settings.MicrophoneDevice);
+            var speaker = AudioDevices.Resolve(DataFlow.Render, _settings.SystemAudioDevice);
+            if (microphone == null || speaker == null)
+            {
+                microphone?.Dispose();
+                speaker?.Dispose();
+                page.ShowTest(microphone == null ? "Không tìm thấy micro nào." : "Không tìm thấy loa hay tai nghe để phát lại.", running: false);
+                return;
+            }
+
+            page.ShowTest($"Đang thu từ {microphone.FriendlyName}: nói vài câu (5 giây)…", running: true);
+            try
+            {
+                void Level(float peak) => _form.BeginInvoke(new Action(() => page.TestLevel.Push(peak)));
+                var recorded = await Task.Run(() => AudioCheck.RecordMicrophone(microphone, TimeSpan.FromSeconds(5), Level, System.Threading.CancellationToken.None));
+                if (recorded.Length == 0)
+                {
+                    page.ShowTest("Micro không gửi tiếng nào: kiểm tra micro có bị tắt tiếng, hoặc Windows chưa cho phép ứng dụng dùng micro.", running: false);
+                    return;
+                }
+
+                var processed = AudioCheck.Process(recorded, _settings.MicProcessing, _settings.MicrophoneVolume);
+                var peak = MicProcessor.LinearToDb(processed.Select(Math.Abs).Max());
+                page.ShowTest("Đang phát lại đúng tiếng sẽ có trong video…", running: true);
+                await Task.Run(() => AudioCheck.Play(speaker, processed, System.Threading.CancellationToken.None));
+                page.ShowTest(peak < -30
+                    ? $"Tiếng hơi nhỏ (to nhất {peak:0} dB): kéo Tăng âm micro lên, hoặc tăng Âm lượng micro."
+                    : peak > -1.5
+                        ? $"Tiếng chạm trần (to nhất {peak:0} dB): bật Chống rè hoặc giảm Tăng âm."
+                        : $"Ổn: to nhất {peak:0} dB. Có tiếng quạt, bàn phím thì bật Chặn ồn nền rồi thu thử lại.",
+                    running: false);
+            }
+            catch (Exception error) when (error is COMException || error is InvalidOperationException || error is ArgumentException)
+            {
+                Log.Error("microphone test failed", error);
+                page.ShowTest("Không mở được micro hoặc loa (đang bị app khác giữ hoặc đã rút).", running: false);
+            }
+            finally
+            {
+                microphone.Dispose();
+                speaker.Dispose();
+            }
         }
 
         /// <summary>One quiet check a minute after start; a newer release shows as a tray note linking to the download page.</summary>
@@ -980,7 +1069,10 @@ namespace Recora.App
                 var source = OpenSource(DataFlow.Capture, _settings.MicrophoneDevice, "micro", into);
                 if (source != null)
                 {
-                    inputs.Add(("Micro", source.Input, _settings.MicrophoneVolume));
+                    // The chain runs per track input, so a separate microphone track gets it too.
+                    var processor = new MicProcessor(_settings.MicProcessing, RecordingCommand.AudioSampleRate);
+                    IAudioInput input = processor.IsBypass ? source.Input : new ProcessedInput(source.Input, processor);
+                    inputs.Add(("Micro", input, _settings.MicrophoneVolume));
                 }
             }
 
@@ -1321,6 +1413,8 @@ namespace Recora.App
             _settings.DrawCursor, _settings.MaxGigabytesPerHour, _settings.SystemAudio, _settings.SystemAudioDevice,
             _settings.SystemVolume, _settings.Microphone, _settings.MicrophoneDevice, _settings.MicrophoneVolume,
             _settings.SeparateTracks, _settings.OutputFolder, _settings.ReplaySeconds,
+            _settings.MicProcessing.GainDb, _settings.MicProcessing.HighPass, _settings.MicProcessing.NoiseGate,
+            _settings.MicProcessing.GateThresholdDb, _settings.MicProcessing.Compressor, _settings.MicProcessing.Limiter,
         });
 
         private static string ReplayLengthText(int seconds) => seconds < 60 ? seconds + " giây" : seconds / 60 + " phút";

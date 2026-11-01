@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows.Forms;
 using Recora.App.Audio;
 using Recora.App.UI.Controls;
+using Recora.Core.Audio;
 using Recora.Core.Encoding;
 using Recora.Core.Hotkeys;
 using Recora.Core.Recording;
@@ -132,9 +133,86 @@ namespace Recora.App.UI
             Row(mic, "Micro", Devices(microphones, settings.MicrophoneDevice, id => settings.MicrophoneDevice = id));
             Row(mic, "Âm lượng", Volume(settings.MicrophoneVolume, v => settings.MicrophoneVolume = v));
 
+            var test = AddCard("thử loa và micro");
+            TestMicrophone = new FlatButton("Thu thử micro 5 giây") { Primary = true, Size = new Size(200, 34), Margin = new Padding(0, 0, 10, 0) };
+            TestSpeaker = new FlatButton("Phát tiếng thử trái, phải") { Size = new Size(220, 34), Margin = Padding.Empty };
+            var testButtons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = new Padding(0, 0, 0, 10) };
+            testButtons.Controls.AddRange(new Control[] { TestMicrophone, TestSpeaker });
+            test.Body.Controls.Add(testButtons);
+            TestLevel = new LevelMeter { Size = new Size(420, 30), Margin = new Padding(0, 0, 0, 6) };
+            test.Body.Controls.Add(TestLevel);
+            _testStatus = Caption(
+                "Thu thử: nói vài câu như khi đang chơi, Recora phát lại đúng tiếng sẽ có trong video (đã qua chỉnh micro bên dưới).",
+                Theme.Small, Theme.Muted, 0);
+            test.Body.Controls.Add(_testStatus);
+
+            var chain = settings.MicProcessing;
+            var tune = AddCard("chỉnh micro");
+            var gainLabel = Caption(string.Empty, Theme.Small, Theme.Muted, 14);
+            void ShowGain() => gainLabel.Text = chain.GainDb == 0 ? "Không tăng. Kéo lên nếu micro tai nghe quá nhỏ." : $"+{chain.GainDb:0} dB";
+            Row(tune, "Tăng âm micro", Slider(0, (int)MicProcessingSettings.MaxGainDb, (int)chain.GainDb, v =>
+            {
+                chain.GainDb = v;
+                ShowGain();
+            }));
+            tune.Body.Controls.Add(gainLabel);
+            ShowGain();
+            tune.Body.Controls.Add(Toggle("Lọc tiếng ù, tiếng gõ bàn (dưới 80 Hz)", chain.HighPass, v => chain.HighPass = v));
+            tune.Body.Controls.Add(Toggle("Chặn ồn nền khi không nói (quạt, bàn phím)", chain.NoiseGate, v => chain.NoiseGate = v));
+            var gateLabel = Caption(string.Empty, Theme.Small, Theme.Muted, 14);
+            void ShowGate() => gateLabel.Text = $"Ngưỡng {chain.GateThresholdDb:0} dB: tiếng nhỏ hơn bị chặn. Mất chữ đầu câu thì kéo sang trái.";
+            var gate = Slider((int)MicProcessingSettings.MinGateThresholdDb, (int)MicProcessingSettings.MaxGateThresholdDb, (int)chain.GateThresholdDb, v =>
+            {
+                chain.GateThresholdDb = v;
+                ShowGate();
+            });
+            gate.Margin = new Padding(0, 0, 0, 4);
+            tune.Body.Controls.Add(gate);
+            tune.Body.Controls.Add(gateLabel);
+            ShowGate();
+            tune.Body.Controls.Add(Toggle("Nén tiếng cho đều (nói nhỏ và hét gần bằng nhau)", chain.Compressor, v => chain.Compressor = v));
+            tune.Body.Controls.Add(Toggle("Chống rè khi nói to", chain.Limiter, v => chain.Limiter = v));
+
             var tracks = AddCard("track");
             tracks.Body.Controls.Add(Toggle("Tách tiếng máy và micro thành hai track riêng", settings.SeparateTracks, v => settings.SeparateTracks = v));
             tracks.Body.Controls.Add(Caption("Để chỉnh riêng tiếng game và giọng nói khi dựng video. Trình phát thường chỉ phát track đầu.", Theme.Small, Theme.Muted));
+        }
+
+        private readonly Label _testStatus;
+
+        public FlatButton TestMicrophone { get; }
+
+        public FlatButton TestSpeaker { get; }
+
+        public LevelMeter TestLevel { get; }
+
+        public void ShowTest(string text, bool running)
+        {
+            _testStatus.Text = text;
+            TestMicrophone.Enabled = !running;
+            TestSpeaker.Enabled = !running;
+            RefitCards();
+        }
+
+        private TrackBar Slider(int minimum, int maximum, int value, Action<int> apply)
+        {
+            var bar = new TrackBar
+            {
+                Minimum = minimum,
+                Maximum = maximum,
+                TickFrequency = 5,
+                SmallChange = 1,
+                LargeChange = 5,
+                Value = Math.Max(minimum, Math.Min(maximum, value)),
+                Width = 420,
+                BackColor = Theme.Surface,
+            };
+            bar.ValueChanged += (_, _) =>
+            {
+                apply(bar.Value);
+                Notify();
+            };
+            return bar;
         }
 
         private ComboBox Devices(IReadOnlyList<AudioDeviceOption> devices, string selectedId, Action<string> apply)

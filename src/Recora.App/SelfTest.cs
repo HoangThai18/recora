@@ -13,6 +13,7 @@ using Recora.App.Logging;
 using Recora.App.Native;
 using Recora.App.Platform;
 using Recora.App.Recording;
+using Recora.Core.Audio;
 using Recora.Core.Capture;
 using Recora.Core.Encoding;
 using Recora.Core.Ffmpeg;
@@ -154,7 +155,12 @@ namespace Recora.App
         {
             var marker = TimeSpan.FromSeconds(1.5);
             var tone = new ToneInput(1000, 0.3f) { OnsetFrame = (long)(marker.TotalSeconds * RecordingCommand.AudioSampleRate) };
-            var track = new AudioTrackSpec("mix", new (IAudioInput, float)[] { (tone, 1f) });
+
+            // The tone goes through the whole microphone chain, so the sync measured below also proves the chain adds
+            // no delay (and the gate opens on the first loud sample).
+            var chain = new MicProcessingSettings { HighPass = true, NoiseGate = true, Compressor = true, Limiter = true };
+            var microphone = new ProcessedInput(tone, new MicProcessor(chain, RecordingCommand.AudioSampleRate));
+            var track = new AudioTrackSpec("mix", new (IAudioInput, float)[] { (microphone, 1f) });
             long connectedAt = 0;
 
             using (var board = new SyncBoard())
