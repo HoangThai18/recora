@@ -16,9 +16,10 @@ namespace Recora.App.Recording
     internal static class CandidateRunner
     {
         /// <param name="tryOpen">Starts FFmpeg with a plan; returns null when frames flow, otherwise why it failed.</param>
-        public static void Run(CaptureEnvironment environment, EncoderMemory memory, RecordingRequest request, Func<RecordingPlan, string?> tryOpen)
+        /// <param name="only">Restrict to one capture backend (restarting a segment the way it ran before).</param>
+        public static void Run(CaptureEnvironment environment, EncoderMemory memory, RecordingRequest request, Func<RecordingPlan, string?> tryOpen, CaptureBackend? only = null)
         {
-            var backends = Backends(environment, request.Source);
+            var backends = only.HasValue ? new[] { only.Value } : Backends(environment, request.Source);
             var encoders = memory.Order(
                 EncoderCatalog.Candidates(request.Source.Monitor.Vendor, request.Codec, environment.Encoders),
                 request.PreferredEncoder);

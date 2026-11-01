@@ -42,6 +42,26 @@ Write-Host ("pause frames at 10 fps: black {0}, white {1}, red {2}, other {3}" -
 if ($counts.red -gt 0) { throw "$($counts.red) frame(s) from the paused time got into the video" }
 if ($counts.black -lt 10 -or $counts.white -lt 10) { throw "expected at least 1 s of each segment (black before, white after the pause)" }
 
+# 1b. Capture lost mid-recording (FFmpeg killed, as when a game goes exclusive fullscreen): black 2 s, white 3 s.
+# The recorder must start a new segment by itself: white must be there and the file close to 5 s.
+if (-not $report.HealedOutput -or -not (Test-Path $report.HealedOutput)) { throw "recording through a capture loss produced no file" }
+$healed = Get-Seconds $report.HealedOutput
+Write-Host ("capture loss: {0} -> {1:N2} s ({2}), segments sum {3:N2} s" -f (Split-Path $report.HealedOutput -Leaf), $healed.Seconds, $healed.Streams, $report.HealedSeconds)
+$rgb = Join-Path $out 'healed.rgb'
+& $ffmpeg -v error -y -i $report.HealedOutput -map 0:v:0 -vf 'fps=10,scale=32:18,format=rgb24' -f rawvideo $rgb
+$px = [IO.File]::ReadAllBytes($rgb)
+$white = 0; $black = 0
+for ($f = 0; $f -lt [math]::Floor($px.Length / $frameSize); $f++) {
+    $sum = 0
+    for ($i = 0; $i -lt $frameSize; $i += 3) { $sum += $px[$f * $frameSize + $i] + $px[$f * $frameSize + $i + 1] + $px[$f * $frameSize + $i + 2] }
+    $avg = $sum / $frameSize
+    if ($avg -gt 200) { $white++ } elseif ($avg -lt 40) { $black++ }
+}
+Write-Host ("capture loss frames at 10 fps: black {0}, white {1}" -f $black, $white)
+if ($white -lt 10) { throw "only $white white frame(s): the recording did not go on after FFmpeg died" }
+if ($black -lt 10) { throw "only $black black frame(s) before the capture loss" }
+if ($healed.Seconds -lt 3.5) { throw "the file lasts $($healed.Seconds) s, expected about 5 s with a short gap" }
+
 # 2. Crash: kill Recora 2.5 s into a recording, then recover like the next start does.
 $crash = Join-Path $out 'crash'
 Remove-Item -Recurse -Force $crash -ErrorAction SilentlyContinue

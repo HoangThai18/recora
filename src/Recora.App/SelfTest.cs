@@ -124,6 +124,10 @@ namespace Recora.App
             // The same recorder the app uses, with a pause in the middle.
             RecordWithPause(directory, report);
             report.Ok = report.Ok && report.PausedOutput != null;
+
+            // FFmpeg dying under a live recording, as when a game switches to exclusive fullscreen.
+            RecordThroughCaptureLoss(directory, report);
+            report.Ok = report.Ok && report.HealedOutput != null;
         }
 
         private static RecordingPlan? FirstWorkingPlan(
@@ -295,6 +299,8 @@ namespace Recora.App
         [DataMember(Order = 24)] public double PausedSeconds { get; set; }
         [DataMember(Order = 25)] public string? PausedEncoder { get; set; }
         [DataMember(Order = 26)] public int LeftoverSessions { get; set; }
+        [DataMember(Order = 27)] public string? HealedOutput { get; set; }
+        [DataMember(Order = 28)] public double HealedSeconds { get; set; }
         [DataMember(Order = 17)] public string? Error { get; set; }
     }
 
