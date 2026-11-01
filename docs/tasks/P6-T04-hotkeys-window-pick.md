@@ -21,5 +21,5 @@ Chủ sản phẩm báo 01/11/2026: "game toàn màn hình bấm F12 vẫn khôn
 - [x] Trang chủ, chế độ Cửa sổ: danh sách cửa sổ đang mở (đọc lại mỗi lần mở danh sách), lưu theo tên chương trình + tiêu đề; chương trình chưa mở vẫn hiện "(chưa mở)"
 - [x] Chưa chọn cửa sổ: bấm phím khi cửa sổ khác Recora đang ở trước thì ghi cửa sổ đó; bấm từ Recora thì vẫn chọn bằng chuột
 - [x] Test Core: HotkeyPoller, HotkeyGate, WindowChoice
-- [ ] CI: cửa sổ giả game (RIDEV_NOHOTKEYS) ở trước, SendInput F9 hai lần → đúng 2 lần; danh sách có Notepad
+- [x] CI: cửa sổ giả game (RIDEV_NOHOTKEYS) ở trước, SendInput F9 hai lần → đúng 2 lần; danh sách có Notepad (run 41295765909: RegisterHotKey một mình nhận 0/2, có đọc phím 2/2)
 - [ ] Thử trên máy thật với Liên Minh

@@ -174,8 +174,8 @@ namespace Recora.App.UI
                 BackColor = Theme.Surface,
                 ForeColor = Theme.Text,
                 Font = Theme.Body,
-                Width = 340,
-                DropDownWidth = 460,
+                Width = 390,
+                DropDownWidth = 480,
                 Margin = new Padding(0, 0, 0, 12),
                 AccessibleName = "Cửa sổ cần ghi",
             };
