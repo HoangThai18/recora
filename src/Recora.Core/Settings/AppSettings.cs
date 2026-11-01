@@ -152,6 +152,12 @@ namespace Recora.Core.Settings
 
         public ThemeMode Theme { get; set; } = ThemeMode.System;
 
+        /// <summary>Window mode: the program whose window F12 records (no ".exe"); empty means pick it with the mouse.</summary>
+        [DataMember(Name = "windowProcess", Order = 44)] public string WindowProcess { get; set; } = string.Empty;
+
+        /// <summary>The chosen window's title, to tell apart two windows of one program.</summary>
+        [DataMember(Name = "windowTitle", Order = 45)] public string WindowTitle { get; set; } = string.Empty;
+
         /// <summary>A small bar with the clock, size, pause and stop on the recorded screen; never in the video.</summary>
         [DataMember(Name = "recordingOverlay", Order = 42)] public bool RecordingOverlay { get; set; } = true;
 
@@ -205,6 +211,8 @@ namespace Recora.Core.Settings
             SystemAudioDevice ??= string.Empty;
             MicrophoneDevice ??= string.Empty;
             VideoDevice ??= string.Empty;
+            WindowProcess ??= string.Empty;
+            WindowTitle ??= string.Empty;
             AutoStopMinutes = Math.Max(0, Math.Min(24 * 60, AutoStopMinutes));
             MaxGigabytesPerHour = Array.IndexOf(SizeLimits, MaxGigabytesPerHour) >= 0 ? MaxGigabytesPerHour : 0;
             MicProcessing = (MicProcessing ?? new MicProcessingSettings()).Normalize();

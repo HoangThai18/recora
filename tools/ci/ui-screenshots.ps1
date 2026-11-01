@@ -19,6 +19,7 @@ foreach ($scale in @('1', '1.5')) {
     }
     $shots += ,@($scale, 'Home', $true)
     $shots += ,@($scale, 'Library', 'trim')
+    $shots += ,@($scale, 'Home', 'window')
 }
 
 # The dark look: every page at 100%, plus one window switched from light to dark while open.
@@ -27,6 +28,7 @@ foreach ($page in @('Home', 'Video', 'Audio', 'Screenshot', 'Hotkeys', 'General'
 }
 $shots += ,@('1', 'Home', $true, 'dark')
 $shots += ,@('1', 'Library', 'trim', 'dark')
+$shots += ,@('1', 'Home', 'window', 'dark')
 $shots += ,@('1', 'Home', $false, 'switch')
 
 foreach ($shot in $shots) {

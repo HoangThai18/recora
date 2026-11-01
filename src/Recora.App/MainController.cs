@@ -147,6 +147,14 @@ namespace Recora.App
                 _settings.VideoDevice = device;
                 SettingsChanged();
             };
+            _form.Home.WindowsOpening += (_, _) => FillWindows();
+            _form.Home.WindowSelected += (_, window) =>
+            {
+                _settings.WindowProcess = window?.Process ?? string.Empty;
+                _settings.WindowTitle = window?.Title ?? string.Empty;
+                Log.Info("window to record: " + (window == null ? "pick with the mouse" : window.Process + " / " + window.Title));
+                SettingsChanged();
+            };
             _form.Home.AudioFormats.SelectedChanged += (_, _) =>
             {
                 _settings.AudioFormat = _form.Home.AudioFormats.Value;
@@ -663,7 +671,9 @@ namespace Recora.App
                 {
                     CaptureModeChoice.Game => ("Game", $"Bấm {hotkey} trong game: Recora ghi đúng màn hình đang chơi · {_settings.Fps} khung/giây"),
                     CaptureModeChoice.Region => ("Chọn vùng", $"Bấm Ghi ({hotkey}) rồi kéo chuột chọn vùng, hoặc bấm vào một cửa sổ"),
-                    CaptureModeChoice.Window => ("Cửa sổ", $"Bấm Ghi ({hotkey}) rồi bấm cửa sổ cần ghi; video bám theo cửa sổ dù bị che"),
+                    CaptureModeChoice.Window => ("Cửa sổ", _settings.WindowProcess.Length > 0
+                        ? $"Bấm {hotkey} (cả trong game): ghi cửa sổ {_settings.WindowProcess}.exe; video bám theo cửa sổ dù bị che"
+                        : $"Chọn cửa sổ trong danh sách, hoặc bấm {hotkey} khi đang ở cửa sổ đó (game): Recora ghi đúng cửa sổ trước mặt"),
                     CaptureModeChoice.Device => ("Webcam", device == null ? "Chưa tìm thấy webcam hay thẻ capture nào" : device + " · kèm micro nếu bật"),
                     CaptureModeChoice.AudioOnly => ("Âm thanh", "Chỉ ghi tiếng máy và micro, không ghi hình"),
                     _ => ("Toàn màn hình", $"{monitor.Name} · {bounds.Width}×{bounds.Height} · {_settings.Fps} khung/giây"),
@@ -673,10 +683,16 @@ namespace Recora.App
                 {
                     CaptureModeChoice.Device => HomePage.PickerKind.Devices,
                     CaptureModeChoice.AudioOnly => HomePage.PickerKind.AudioFormats,
-                    CaptureModeChoice.Region or CaptureModeChoice.Window => HomePage.PickerKind.None,
+                    CaptureModeChoice.Window => HomePage.PickerKind.Windows,
+                    CaptureModeChoice.Region => HomePage.PickerKind.None,
                     _ => HomePage.PickerKind.Monitors,
                 });
                 _form.Home.ShowDevices(_videoDevices, _settings.VideoDevice);
+                if (mode == CaptureModeChoice.Window)
+                {
+                    FillWindows();
+                }
+
                 _form.Home.AudioFormats.Value = _settings.AudioFormat;
                 _form.Home.Preview.SetPlaceholder(
                     mode == CaptureModeChoice.Device ? IconKind.Webcam : mode == CaptureModeChoice.AudioOnly ? IconKind.Audio : IconKind.Monitor,
@@ -895,7 +911,7 @@ namespace Recora.App
             Rectangle area;
             if (mode == CaptureModeChoice.Region || mode == CaptureModeChoice.Window)
             {
-                var pick = PickTarget(mode == CaptureModeChoice.Region ? PickKind.Region : PickKind.Window);
+                var pick = mode == CaptureModeChoice.Window ? WindowTarget() : PickTarget(PickKind.Region);
                 if (pick == null)
                 {
                     return;
@@ -945,6 +961,69 @@ namespace Recora.App
         {
             var center = new Point(area.X + area.Width / 2, area.Y + area.Height / 2);
             return _environment!.MonitorFor(Screen.FromPoint(center).DeviceName);
+        }
+
+        /// <summary>The open windows in the Home list, the saved one selected (or kept as "chưa mở").</summary>
+        private void FillWindows()
+        {
+            IReadOnlyList<OpenWindow> windows;
+            try
+            {
+                windows = WindowPicking.List();
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException)
+            {
+                Log.Warn("could not list windows: " + error.Message);
+                windows = new OpenWindow[0];
+            }
+
+            var saved = WindowChoice.Find(windows, _settings.WindowProcess, _settings.WindowTitle);
+            var closed = saved == null && _settings.WindowProcess.Length > 0 ? _settings.WindowProcess + ".exe" : null;
+            _form.Home.ShowWindows(windows, saved, closed);
+        }
+
+        /// <summary>
+        /// What window mode records. The window chosen in the list when it is open; with none chosen, the window in
+        /// front when that is not Recora (F12 pressed inside a game: the picker cannot show over a fullscreen
+        /// game); otherwise the mouse picker.
+        /// </summary>
+        private PickResult? WindowTarget()
+        {
+            OpenWindow? target = null;
+            if (_settings.WindowProcess.Length > 0)
+            {
+                target = WindowChoice.Find(WindowPicking.List(), _settings.WindowProcess, _settings.WindowTitle);
+                if (target == null && !RecoraInFront())
+                {
+                    _tray.Notify("Chưa thấy cửa sổ cần ghi", $"{_settings.WindowProcess}.exe chưa mở. Mở nó lên rồi bấm {_settings.HotkeyRecord} lại, hoặc đổi cửa sổ ở trang chủ.");
+                    return null;
+                }
+            }
+            else if (!RecoraInFront())
+            {
+                target = WindowPicking.Foreground();
+            }
+
+            if (target == null)
+            {
+                return PickTarget(PickKind.Window);
+            }
+
+            var hwnd = new IntPtr(target.Hwnd);
+            Log.Info($"recording window {target.Process} / {target.Title}");
+            return new PickResult(WindowPicking.VisibleBounds(hwnd), hwnd, target.Title);
+        }
+
+        private bool RecoraInFront()
+        {
+            var foreground = GetForegroundWindow();
+            if (foreground == IntPtr.Zero)
+            {
+                return true;
+            }
+
+            GetWindowThreadProcessId(foreground, out var pid);
+            return pid == (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
         }
 
         /// <summary>Shows the region/window picker with Recora's window out of the way.</summary>
@@ -1062,7 +1141,7 @@ namespace Recora.App
 
                 case CaptureModeChoice.Region:
                 case CaptureModeChoice.Window:
-                    var pick = PickTarget(mode == CaptureModeChoice.Region ? PickKind.Region : PickKind.Window);
+                    var pick = mode == CaptureModeChoice.Window ? WindowTarget() : PickTarget(PickKind.Region);
                     if (pick == null)
                     {
                         return;
@@ -2190,5 +2269,8 @@ namespace Recora.App
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     }
 }

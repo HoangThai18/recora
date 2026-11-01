@@ -309,6 +309,73 @@ namespace Recora.App.UI
             return IntPtr.Zero;
         }
 
+        /// <summary>The windows a recording can follow, front first, without Recora's own.</summary>
+        public static IReadOnlyList<Core.Capture.OpenWindow> List()
+        {
+            var own = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
+            var names = new Dictionary<uint, string>();
+            var windows = new List<Core.Capture.OpenWindow>();
+            for (var hwnd = GetTopWindow(IntPtr.Zero); hwnd != IntPtr.Zero; hwnd = GetWindow(hwnd, 2))
+            {
+                if (!IsCandidate(hwnd))
+                {
+                    continue;
+                }
+
+                GetWindowThreadProcessId(hwnd, out var pid);
+                if (pid == own)
+                {
+                    continue;
+                }
+
+                if (!names.TryGetValue(pid, out var process))
+                {
+                    process = ProcessName(pid);
+                    names[pid] = process;
+                }
+
+                if (IsDesktop(hwnd, process))
+                {
+                    continue;
+                }
+
+                windows.Add(new Core.Capture.OpenWindow(hwnd.ToInt64(), Title(hwnd), process));
+            }
+
+            return windows;
+        }
+
+        /// <summary>The program of the window in front, or null when it is no recordable window.</summary>
+        public static Core.Capture.OpenWindow? Foreground()
+        {
+            var hwnd = GetForegroundWindow();
+            if (hwnd == IntPtr.Zero || !IsCandidate(hwnd))
+            {
+                return null;
+            }
+
+            GetWindowThreadProcessId(hwnd, out var pid);
+            var process = ProcessName(pid);
+            return IsDesktop(hwnd, process) ? null : new Core.Capture.OpenWindow(hwnd.ToInt64(), Title(hwnd), process);
+        }
+
+        /// <summary>The desktop behind the icons (Program Manager) is no window to record; full screen mode is.</summary>
+        private static bool IsDesktop(IntPtr hwnd, string process) =>
+            string.Equals(process, "explorer", StringComparison.OrdinalIgnoreCase) && Title(hwnd) == "Program Manager";
+
+        private static string ProcessName(uint pid)
+        {
+            try
+            {
+                using var process = System.Diagnostics.Process.GetProcessById((int)pid);
+                return process.ProcessName;
+            }
+            catch (Exception error) when (error is ArgumentException || error is InvalidOperationException || error is System.ComponentModel.Win32Exception)
+            {
+                return string.Empty;
+            }
+        }
+
         public static Rectangle VisibleBounds(IntPtr hwnd)
         {
             if (DwmGetWindowAttribute(hwnd, DwmExtendedFrameBounds, out Rect rect, Marshal.SizeOf(typeof(Rect))) != 0)
@@ -354,6 +421,12 @@ namespace Recora.App.UI
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetTopWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);

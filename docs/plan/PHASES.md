@@ -8,7 +8,7 @@
 | P3 | Phát hành trên thaipro.store | done |
 | P4 | Cho người chơi game: lưu khoảnh khắc, cắt video, file nhẹ, thử và chỉnh micro | done |
 | P5 | Chuyển động mượt, Dựng phim (Clipora), giao diện sáng/tối, thanh đang ghi | done |
-| P6 | Cập nhật ngay trong app | doing |
+| P6 | Cập nhật ngay trong app, sửa lỗi game | doing |
 
 ---
 
