@@ -85,3 +85,6 @@ foreach ($p in $problems) { Write-Host "PROBLEM: $p" }
 Write-Host "encoder options: $checked option/value pairs checked against ffmpeg help, $ran argument lists run on testsrc2"
 if ($problems.Count -gt 0) { throw "$($problems.Count) encoder option problem(s)" }
 Write-Host "encoder options OK"
+
+# The runs above end with FFmpeg errors on purpose; the step must not inherit their exit code.
+exit 0
