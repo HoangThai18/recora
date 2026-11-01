@@ -130,7 +130,8 @@ namespace Recora.App.UI
 
             var mic = AddCard("micro");
             mic.Body.Controls.Add(Toggle("Ghi micro", settings.Microphone, v => settings.Microphone = v));
-            Row(mic, "Micro", Devices(microphones, settings.MicrophoneDevice, id => settings.MicrophoneDevice = id));
+            Row(mic, "Micro", Devices(microphones, settings.MicrophoneDevice, id => settings.MicrophoneDevice = id),
+                "Tai nghe Bluetooth: ghi micro của tai nghe làm nó chuyển sang chế độ gọi, tiếng game nhỏ và rè. Để Mặc định thì Recora tự dùng micro khác nếu máy có.");
             Row(mic, "Âm lượng", Volume(settings.MicrophoneVolume, v => settings.MicrophoneVolume = v));
 
             var test = AddCard("thử loa và micro");

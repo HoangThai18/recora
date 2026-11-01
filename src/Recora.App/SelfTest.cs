@@ -30,6 +30,29 @@ namespace Recora.App
     {
         private static readonly TimeSpan Target = TimeSpan.FromSeconds(3);
 
+        /// <summary>
+        /// The ducking opt-out talks to Windows through hand-declared COM interfaces: a wrong vtable would crash or
+        /// fail here on every capture endpoint the runner has, instead of in a user's game.
+        /// </summary>
+        private static void CheckDuckingOptOut()
+        {
+            using (var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator())
+            {
+                foreach (var flow in new[] { NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.DataFlow.Render })
+                {
+                    foreach (var device in enumerator.EnumerateAudioEndPoints(flow, NAudio.CoreAudioApi.DeviceState.Active))
+                    {
+                        var ok = Audio.Ducking.OptOut(device.ID);
+                        Console.WriteLine($"ducking opt-out on {flow} {device.FriendlyName}: {ok}; hands-free: {Audio.AudioDevices.IsHandsFree(device)}");
+                        if (!ok)
+                        {
+                            throw new InvalidOperationException("ducking opt-out failed on " + device.FriendlyName);
+                        }
+                    }
+                }
+            }
+        }
+
         public static int Run(string directory)
         {
             Directory.CreateDirectory(directory);
@@ -38,6 +61,7 @@ namespace Recora.App
 
             try
             {
+                CheckDuckingOptOut();
                 Execute(directory, report);
             }
             catch (Exception error)
