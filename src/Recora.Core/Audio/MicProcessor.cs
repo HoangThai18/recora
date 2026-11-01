@@ -126,8 +126,10 @@ namespace Recora.Core.Audio
 
             for (var f = 0; f < frames; f++)
             {
-                var left = stereo[f * 2] * _gain;
-                var right = stereo[f * 2 + 1] * _gain;
+                // A driver glitch can hand over NaN or infinity; one such sample would poison every filter state
+                // and make the AAC encoder refuse the rest of the segment, so it becomes silence here.
+                var left = Finite(stereo[f * 2]) * _gain;
+                var right = Finite(stereo[f * 2 + 1]) * _gain;
 
                 if (_settings.HighPass)
                 {
@@ -185,6 +187,8 @@ namespace Recora.Core.Audio
                 stereo[f * 2 + 1] = right;
             }
         }
+
+        private static float Finite(float sample) => float.IsNaN(sample) || float.IsInfinity(sample) ? 0f : sample;
 
         public static float DbToLinear(float db) => (float)Math.Pow(10, db / 20.0);
 

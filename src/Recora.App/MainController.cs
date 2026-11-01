@@ -51,6 +51,7 @@ namespace Recora.App
         private bool _replaySaving;
         private string? _replaySignature;
         private DateTime _replayRetryAt;
+        private int _replayFailures;
         private CaptureEnvironment? _environment;
         private EncoderMemory? _memory;
         private Recorder? _recorder;
@@ -148,6 +149,8 @@ namespace Recora.App
                 }
 
                 _settings.ReplayEnabled = _form.Home.Replay.Checked;
+                _replayFailures = 0;
+                ApplyHotkeys();
                 SettingsChanged();
                 if (_settings.ReplayEnabled)
                 {
@@ -648,8 +651,14 @@ namespace Recora.App
                 [HotkeyAction.Record] = _settings.HotkeyRecord,
                 [HotkeyAction.Pause] = _settings.HotkeyPause,
                 [HotkeyAction.Screenshot] = _settings.HotkeyScreenshot,
-                [HotkeyAction.SaveReplay] = _settings.HotkeyReplay,
             };
+
+            // Alt+F10 belongs to other apps (Visual Studio, IntelliJ) unless the user wants moments kept.
+            if (_settings.ReplayEnabled)
+            {
+                keys[HotkeyAction.SaveReplay] = _settings.HotkeyReplay;
+            }
+
             var failed = _hotkeys.Apply(keys);
             _form.PageOf<HotkeysPage>(PageKind.Hotkeys)?.ShowConflicts(failed.Select(action => action switch
             {
@@ -1204,8 +1213,16 @@ namespace Recora.App
         private async void ResumeReplay()
         {
             var replay = _replay;
-            if (replay == null || _disposed || _exiting || !_settings.ReplayEnabled || replay.IsRunning || _replayBusy || Busy || _preparing)
+            if (replay == null || _disposed || _exiting || !_settings.ReplayEnabled || replay.IsRunning)
             {
+                return;
+            }
+
+            if (_replayBusy || Busy || _preparing)
+            {
+                // Something else holds the screen for a moment (picking a region for F11, opening a recording):
+                // try again shortly instead of staying off. A recording resumes the buffer itself when it ends.
+                RetryReplayIn(TimeSpan.FromSeconds(2));
                 return;
             }
 
@@ -1218,27 +1235,40 @@ namespace Recora.App
                 var seconds = _settings.ReplaySeconds;
                 _replaySignature = ReplaySignature();
                 await Task.Run(() => replay.Start(request, seconds));
+                _replayFailures = 0;
                 if (_memory != null && _memory.Dirty)
                 {
                     SaveSettings();
                 }
             }
-            catch (Exception error) when (error is RecoraException || error is IOException || error is UnauthorizedAccessException)
+            catch (Exception error) when (error is RecoraException || error is IOException || error is UnauthorizedAccessException || error is System.ComponentModel.Win32Exception)
             {
                 Log.Error("replay buffer failed to start", error);
                 CloseAudio(_replayAudio);
-                _replayRetryAt = DateTime.UtcNow.AddSeconds(30);
-                _tray.Notify("Không giữ được khoảnh khắc", Explain(error is RecoraException known ? known.Code : "unexpected"), ToolTipIcon.Warning);
+
+                // Told once; later attempts back off (30 s, 1, 2, 4… up to 15 minutes) and stay quiet.
+                _replayFailures++;
+                RetryReplayIn(TimeSpan.FromSeconds(Math.Min(900, 30 * Math.Pow(2, _replayFailures - 1))));
+                if (_replayFailures == 1)
+                {
+                    _tray.Notify("Không giữ được khoảnh khắc", Explain(error is RecoraException known ? known.Code : "unexpected") + " Recora sẽ tự thử lại.", ToolTipIcon.Warning);
+                }
             }
             finally
             {
                 _replayBusy = false;
             }
 
-            // F12 may have been pressed while the buffer was opening: the recording wins.
+            // F12 may have been pressed while the buffer was opening: the recording wins. A region pick (F11) only
+            // borrows the screen, so the buffer comes back right after it.
             if (Busy || _preparing || !_settings.ReplayEnabled)
             {
+                var wanted = _settings.ReplayEnabled;
                 await StopReplay();
+                if (wanted && !Busy)
+                {
+                    RetryReplayIn(TimeSpan.FromSeconds(2));
+                }
             }
 
             ShowStatus();
@@ -1253,8 +1283,9 @@ namespace Recora.App
                 return;
             }
 
-            // A start or a save in progress finishes first; stopping under it would delete the chunks it reads.
-            for (var i = 0; i < 150 && (_replayBusy || _replaySaving); i++)
+            // A save in progress always finishes first (stopping under it would delete the chunks it copies); a start
+            // gets up to 15 s.
+            for (var i = 0; _replaySaving || (_replayBusy && i < 150); i++)
             {
                 await Task.Delay(100);
             }
@@ -1292,6 +1323,10 @@ namespace Recora.App
                 if (Busy)
                 {
                     _tray.Notify("Đang ghi", $"Recora đang ghi cả màn hình: bấm {_settings.HotkeyRecord} để dừng và lưu.");
+                }
+                else if (_settings.ReplayEnabled)
+                {
+                    _tray.Notify("Đang mở lại", "Recora đang mở lại bộ giữ khoảnh khắc (màn hình vừa bị Windows chiếm hoặc ổ đầy). Thử lại sau vài giây.");
                 }
                 else
                 {
@@ -1351,15 +1386,18 @@ namespace Recora.App
                 if (free.HasValue && DiskGuard.ShouldStop(free.Value))
                 {
                     await StopReplay();
-                    _tray.Notify("Ổ đĩa sắp đầy", "Còn dưới 500 MB trống nên Recora đã ngừng giữ khoảnh khắc.", ToolTipIcon.Warning);
+                    _tray.Notify("Ổ đĩa sắp đầy", "Còn dưới 500 MB trống nên Recora đã ngừng giữ khoảnh khắc; dọn bớt ổ là Recora tự giữ lại.", ToolTipIcon.Warning);
+                    RetryReplayIn(TimeSpan.FromMinutes(1));
                     ShowStatus();
                 }
             }
             else if (replay.HasDied)
             {
+                // ddagrab ends when Windows takes the screen away (UAC, lock screen, a game switching to exclusive
+                // fullscreen). Reopen almost at once so the next moment is held again.
                 Log.Warn("replay buffer's ffmpeg exited; restarting");
                 await StopReplay();
-                _replayRetryAt = DateTime.UtcNow.AddSeconds(10);
+                RetryReplayIn(TimeSpan.FromSeconds(1));
             }
             else if (_settings.ReplayEnabled && !Busy && !_preparing && DateTime.UtcNow >= _replayRetryAt && _replayRetryAt != DateTime.MinValue)
             {
@@ -1368,6 +1406,15 @@ namespace Recora.App
             }
 
             ShowReplayState();
+        }
+
+        private void RetryReplayIn(TimeSpan delay)
+        {
+            var at = DateTime.UtcNow + delay;
+            if (_replayRetryAt == DateTime.MinValue || at < _replayRetryAt)
+            {
+                _replayRetryAt = at;
+            }
         }
 
         private void ShowReplayState()
