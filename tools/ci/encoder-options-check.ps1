@@ -17,7 +17,7 @@ function Read-Options([string[]]$help) {
     $options = @{}
     $current = $null
     foreach ($line in $help) {
-        if ($line -match '^\s{1,3}-([A-Za-z0-9_:]+)\s+<') {
+        if ($line -match '^\s{1,3}-([A-Za-z0-9_:-]+)\s+<') {
             $current = $Matches[1]
             $options[$current] = New-Object System.Collections.Generic.HashSet[string]
         } elseif ($current -and $line -match '^\s{4,}([A-Za-z0-9_+.-]+)\s+\S*\s*E') {
@@ -75,7 +75,7 @@ foreach ($line in Get-Content $dump -Encoding UTF8 | Select-Object -Unique) {
 
 # The check must be able to fail: a real option is found, an invented one is not, and a bad value is rejected.
 $nvenc = $perEncoder['h264_nvenc']
-if (-not $nvenc -or -not $nvenc.ContainsKey('cq') -or -not $nvenc['rc'].Contains('vbr')) { $problems += "help parsing is broken: h264_nvenc -cq / -rc vbr not found" }
+if (-not $nvenc -or -not $nvenc.ContainsKey('cq') -or -not $nvenc.ContainsKey('spatial-aq') -or -not $nvenc['rc'].Contains('vbr')) { $problems += "help parsing is broken: h264_nvenc -cq / -spatial-aq / -rc vbr not found" }
 if ($nvenc -and $nvenc.ContainsKey('follow_mouse')) { $problems += "help parsing is broken: an invented option was found" }
 $bad = & $ffmpeg -hide_banner -nostdin -loglevel error -f lavfi -i 'testsrc2=size=320x240:rate=30' -frames:v 1 -c:v h264_nvenc -rc notamode -f null - 2>&1 | Out-String
 if ($bad -notmatch $rejected) { $problems += "a bad value was not rejected, so the run check proves nothing: $($bad.Trim())" }
