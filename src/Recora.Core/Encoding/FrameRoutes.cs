@@ -43,7 +43,7 @@ namespace Recora.Core.Encoding
                 return TexturesOnly;
             }
 
-            return Lightest.Where(route => !knownToFail.Contains(route)).Concat(Lightest.Where(knownToFail.Contains)).ToList();
+            return Lightest.Where(route => !knownToFail.Contains(route)).Concat(Lightest.Where(route => knownToFail.Contains(route))).ToList();
         }
 
         /// <summary>What the log calls a route, after the encoder's name.</summary>

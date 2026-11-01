@@ -8,7 +8,7 @@ namespace Recora.Core.Tests.Recording
 {
     public class LightCpuProfileTests
     {
-        private static RecordingPlan Plan(EncoderKind kind, CaptureBackend backend = CaptureBackend.Ddagrab, bool download = false, OutputScale scale = OutputScale.Original) =>
+        private static RecordingPlan Plan(EncoderKind kind, CaptureBackend backend = CaptureBackend.Ddagrab, FrameRoute route = FrameRoute.Textures, OutputScale scale = OutputScale.Original) =>
             new RecordingPlan(
                 new MonitorSource(Monitors.Primary()),
                 backend,
