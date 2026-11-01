@@ -31,7 +31,9 @@ $roundtrip = Start-Process -FilePath $installed -ArgumentList '--settings-roundt
 if ($roundtrip.ExitCode -ne 0) { throw "installed Recora.exe failed to run ($($roundtrip.ExitCode))" }
 # "Cập nhật ngay" path: the same installer run silently over the installed app with /RELAUNCH=1 must start it again.
 Get-Process Recora -ErrorAction SilentlyContinue | Stop-Process -Force
-$update = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/RELAUNCH=1' -Wait -PassThru
+# Not -Wait: it waits for every child too, and the app the installer starts again never exits on its own.
+$update = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/RELAUNCH=1' -PassThru
+if (-not $update.WaitForExit(180000)) { throw "update install did not finish in 3 minutes" }
 if ($update.ExitCode -ne 0) { throw "update install exited with $($update.ExitCode)" }
 $relaunched = $null
 for ($i = 0; $i -lt 20 -and -not $relaunched; $i++) { Start-Sleep -Milliseconds 500; $relaunched = Get-Process Recora -ErrorAction SilentlyContinue }
