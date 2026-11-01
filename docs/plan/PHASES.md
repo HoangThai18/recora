@@ -6,7 +6,7 @@
 | P1 | Ghi toàn màn hình kèm tiếng, tạm dừng, phím tắt, không mất video | done |
 | P2 | Đủ các chế độ quay và công cụ đi kèm | done |
 | P3 | Phát hành trên thaipro.store | done |
-| P4 | Cho người chơi game: lưu khoảnh khắc, cắt video, file nhẹ, thử và chỉnh micro | doing |
+| P4 | Cho người chơi game: lưu khoảnh khắc, cắt video, file nhẹ, thử và chỉnh micro | done |
 
 ---
 
@@ -87,12 +87,12 @@ Bằng chứng: [docs/reviews/P0.md](../reviews/P0.md), CI [41212947105](https:/
 - Âm thanh: thu thử micro rồi phát lại, phát tiếng thử trái/phải ra loa, chỉnh micro (tăng âm, lọc tiếng ù, chặn ồn nền, nén tiếng, chống rè).
 
 **Tiêu chí ra:**
-- [ ] Selftest giữ khoảnh khắc trên CI: lưu được clip đúng độ dài (±2,5 s), thư mục đệm không phình quá số đoạn đã định, lưu được lần hai khi vẫn đang giữ
-- [ ] Selftest cắt video: bản cắt có đủ hình và tiếng, độ dài đúng khoảng đã chọn (đầu có thể lùi tới một keyframe)
-- [ ] Mọi bộ tham số GPU (NVENC, AMF, QSV, MF) có và không có giới hạn dung lượng đều được FFmpeg 8.1.3 nhận (CI chạy thử, lỗi chỉ được là thiếu GPU, không phải sai tham số)
-- [ ] Test Core cho bộ xử lý micro: lọc tiếng ù, chặn ồn, nén, chống rè có số đo
-- [ ] Ảnh chụp trang Trang chủ (có ô lưu khoảnh khắc), Âm thanh (thử và chỉnh micro), hộp cắt video
-- [ ] Release `recora-0.2.0`, trang tải cập nhật tính năng mới
+- [x] Selftest giữ khoảnh khắc trên CI: lưu được clip đúng độ dài (±2,5 s), thư mục đệm không phình quá số đoạn đã định, lưu được lần hai khi vẫn đang giữ
+- [x] Selftest cắt video: bản cắt có đủ hình và tiếng, độ dài đúng khoảng đã chọn (đầu có thể lùi tới một keyframe)
+- [x] Mọi bộ tham số GPU (NVENC, AMF, QSV, MF) có và không có giới hạn dung lượng đều được FFmpeg 8.1.3 nhận (CI chạy thử, lỗi chỉ được là thiếu GPU, không phải sai tham số)
+- [x] Test Core cho bộ xử lý micro: lọc tiếng ù, chặn ồn, nén, chống rè có số đo
+- [x] Ảnh chụp trang Trang chủ (có ô lưu khoảnh khắc), Âm thanh (thử và chỉnh micro), hộp cắt video
+- [x] Release `recora-0.2.0`, trang tải cập nhật tính năng mới
 
 **Rủi ro:** muxer `segment` phải thêm vào bản dựng FFmpeg; đọc danh sách đoạn trong lúc FFmpeg đang ghi; xử lý âm thanh thêm độ trễ hoặc làm méo tiếng.
 
