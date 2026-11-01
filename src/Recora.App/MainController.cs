@@ -1374,8 +1374,7 @@ namespace Recora.App
         {
             var replay = _replay;
             var length = ReplayLengthText(_settings.ReplaySeconds);
-            var hint = $"Bấm {_settings.HotkeyReplay} (cả khi đang trong game) để lưu {length} vừa qua của màn hình đang chọn thành video. "
-                + $"Bấm {_settings.HotkeyRecord} vẫn ghi thường như cũ.";
+            var hint = $"{_settings.HotkeyReplay} (cả khi đang chơi): lưu {length} vừa qua của màn hình đang chọn. {_settings.HotkeyRecord} vẫn ghi thường.";
             string state;
             if (replay == null)
             {

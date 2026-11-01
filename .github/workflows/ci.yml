@@ -138,6 +138,10 @@ jobs:
         shell: pwsh
         run: tools/ci/modes-checks.ps1
 
+      - name: Tham số bộ mã hoá GPU khớp FFmpeg (không cần GPU)
+        shell: pwsh
+        run: tools/ci/encoder-options-check.ps1
+
       - name: Lưu khoảnh khắc (vòng đệm, lưu hai lần)
         shell: pwsh
         run: tools/ci/replay-checks.ps1

@@ -69,7 +69,7 @@ namespace Recora.App.UI
                 var preview = form.Home.Preview.Size;
                 form.Home.Preview.Image = ScreenPreview.Capture(screen, new Size(preview.Width, preview.Width * screen.Height / screen.Width));
 
-                const string replayHint = "Bấm Alt+F10 (cả khi đang trong game) để lưu 30 giây vừa qua của màn hình đang chọn thành video. Bấm F12 vẫn ghi thường như cũ.";
+                const string replayHint = "Alt+F10 (cả khi đang chơi): lưu 30 giây vừa qua của màn hình đang chọn. F12 vẫn ghi thường.";
                 form.Home.Replay.Checked = true;
                 form.Home.ReplayLength.Value = 30;
                 form.Home.ShowReplay(replayHint, recording ? "> tạm nghỉ trong lúc ghi thường" : "> đang giữ 0:30 / 30 giây · h264_nvenc", canSave: !recording);

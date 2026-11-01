@@ -29,6 +29,7 @@ $seconds = [double]::Parse($cut.format.duration, $inv)
 $span = [double]::Parse($info.to, $inv) - [double]::Parse($info.from, $inv)
 Write-Host ("cut: {0} ({1}) {2:N2} s for a {3:N2} s span" -f (Split-Path $info.output -Leaf), $types, $seconds, $span)
 if ($types -ne 'video,audio') { throw "the cut has streams '$types', expected video,audio" }
-if ($seconds -lt $span - 0.15 -or $seconds -gt $span + 2.1) { throw "the cut lasts $seconds s for a $span s span" }
+# A keyframe up to 0.25 s after the start is taken, one before it at most 2 s back.
+if ($seconds -lt $span - 0.35 -or $seconds -gt $span + 2.1) { throw "the cut lasts $seconds s for a $span s span" }
 if (-not (Split-Path $info.output -Leaf).Contains('(cắt)')) { throw "unexpected cut name $($info.output)" }
 Write-Host "trim checks OK"

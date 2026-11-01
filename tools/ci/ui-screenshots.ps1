@@ -23,7 +23,8 @@ foreach ($scale in @('1', '1.5')) {
 
 foreach ($shot in $shots) {
     $scale, $page, $recording = $shot
-    $dialog = if ($recording -eq 'trim') { 'trim' } else { $null }
+    # A string marks a dialog shot; comparing $true -eq 'trim' would be true in PowerShell.
+    $dialog = if ($recording -is [string]) { $recording } else { $null }
     if ($dialog) { $recording = $false }
     $suffix = if ($recording) { '-recording' } elseif ($dialog) { "-$dialog" } else { '' }
     $file = Join-Path $out ("ui-{0}{1}-{2}.png" -f $page.ToLower(), $suffix, $scale.Replace('.', '_'))
