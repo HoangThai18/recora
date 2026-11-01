@@ -142,6 +142,10 @@ jobs:
         shell: pwsh
         run: tools/ci/replay-checks.ps1
 
+      - name: Cắt video (độ dài, ảnh xem trước, bản cắt)
+        shell: pwsh
+        run: tools/ci/trim-checks.ps1
+
       - name: Cửa sổ Recora không lọt vào video của chính nó
         shell: pwsh
         run: tools/ci/exclusion-check.ps1

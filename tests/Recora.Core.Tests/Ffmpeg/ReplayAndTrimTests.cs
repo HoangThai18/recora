@@ -100,6 +100,14 @@ namespace Recora.Core.Tests.Ffmpeg
             Assert.EndsWith(".mp4", TrimCommand.OutputPath(Video, path => path == first));
         }
 
+        [Theory]
+        [InlineData("  Duration: 00:01:02.50, start: 0.000000, bitrate: 2400 kb/s", 62.5)]
+        [InlineData("Input #0, matroska,webm\n  Duration: 01:00:00.04, start: 0", 3600.04)]
+        [InlineData("  Duration: N/A, start: 1793464516.479924", null)]
+        [InlineData("garbage", null)]
+        public void MediaInfo_ParsesTheDurationLine(string stderr, double? expected) =>
+            Assert.Equal(expected, MediaInfoCommand.ParseDuration(stderr)?.TotalSeconds);
+
         [Fact]
         public void FramePreview_OneBgraFrameInAFixedBox()
         {

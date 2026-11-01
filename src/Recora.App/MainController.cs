@@ -297,7 +297,9 @@ namespace Recora.App
             screenshots.Changed += (_, _) => SettingsChanged();
             _form.SetPage(PageKind.Screenshot, screenshots);
 
-            _form.SetPage(PageKind.Library, new LibraryPage(() => LibraryFiles.Scan(OutputFolder)));
+            var library = new LibraryPage(() => LibraryFiles.Scan(OutputFolder));
+            library.TrimRequested += async (_, item) => await Trim(library, item);
+            _form.SetPage(PageKind.Library, library);
             var about = new AboutPage(Program.Version, environment.FfmpegVersion);
             about.CheckUpdate.Click += async (_, _) =>
             {
@@ -1323,6 +1325,33 @@ namespace Recora.App
 
         private static string ReplayLengthText(int seconds) => seconds < 60 ? seconds + " giây" : seconds / 60 + " phút";
 
+        /// <summary>"Cắt": the length comes from the library index, or from FFmpeg for files Recora did not record.</summary>
+        private async Task Trim(LibraryPage library, LibraryItem item)
+        {
+            var ffmpeg = _environment?.FfmpegPath;
+            if (ffmpeg == null || !File.Exists(item.Path))
+            {
+                library.Reload();
+                return;
+            }
+
+            var duration = item.Duration ?? await Task.Run(() => TrimService.Duration(ffmpeg, item.Path));
+            if (duration == null || duration.Value < TimeSpan.FromSeconds(1.5))
+            {
+                ShowMessage("Không đọc được độ dài của file này, hoặc file quá ngắn để cắt.", MessageBoxIcon.Information);
+                return;
+            }
+
+            using (var dialog = new TrimDialog(ffmpeg, item, duration.Value))
+            {
+                if (dialog.ShowDialog(_form) == DialogResult.OK && dialog.SavedPath != null)
+                {
+                    library.Reload();
+                    library.Select(dialog.SavedPath);
+                }
+            }
+        }
+
         private void OnRecorderChanged(RecorderStatus status)
         {
             // A failed resume stops and saves inside the recorder; remember that file too.
@@ -1556,6 +1585,7 @@ namespace Recora.App
             "device_unavailable" => "Không mở được webcam: có thể app khác (Zalo, Zoom, trình duyệt) đang dùng nó. Tắt app đó rồi thử lại.",
             "audio_failed" => "Không ghi được âm thanh ở định dạng này. Thử M4A ở trang chủ chế độ Âm thanh.",
             "region_too_small" => "Vùng ghi quá nhỏ, cần ít nhất 160×90 điểm ảnh.",
+            "trim_failed" => "Không cắt được video này. Thử lại, hoặc xem nhật ký ở trang Giới thiệu.",
             "replay_save_failed" => "Không ghép được khoảnh khắc thành video. Thử lại, hoặc xem nhật ký ở trang Giới thiệu.",
             _ => "Có lỗi không mong muốn. Xem nhật ký ở trang Giới thiệu và gửi kèm khi báo lỗi.",
         };

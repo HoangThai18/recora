@@ -20,7 +20,7 @@ namespace Recora.App.UI
     /// </summary>
     internal static class UiScreenshot
     {
-        public static int Run(string path, float scale, PageKind page, string? libraryFolder, bool recording = false)
+        public static int Run(string path, float scale, PageKind page, string? libraryFolder, bool recording = false, string? dialog = null)
         {
             Theme.Configure(scale);
             var settings = new AppSettings { OutputFolder = libraryFolder ?? @"D:\Videos\Recora" };
@@ -97,6 +97,33 @@ namespace Recora.App.UI
                 for (var i = 0; i < 10; i++)
                 {
                     Application.DoEvents();
+                }
+
+                if (dialog == "trim")
+                {
+                    // The cut dialog over the library, with a picture of the desktop in place of a decoded still.
+                    var item = new LibraryItem(@"C:\Users\Ban\Videos\Recora\Recora 2026-11-01 20-15-03 khoảnh khắc.mp4", "Recora 2026-11-01 20-15-03 khoảnh khắc.mp4", 48_000_000, DateTime.Now, TimeSpan.FromSeconds(75), false);
+                    using (var trim = new TrimDialog(null, item, TimeSpan.FromSeconds(75)))
+                    {
+                        trim.StartPosition = FormStartPosition.Manual;
+                        trim.Location = new Point(form.Left + 80, form.Top + 80);
+                        trim.ShowSample(ScreenPreview.Capture(screen, new Size(480, 270)), TimeSpan.FromSeconds(12.5), TimeSpan.FromSeconds(47));
+                        trim.Show(form);
+                        for (var i = 0; i < 10; i++)
+                        {
+                            Application.DoEvents();
+                        }
+
+                        using (var bitmap = new Bitmap(trim.Width, trim.Height))
+                        {
+                            trim.DrawToBitmap(bitmap, new Rectangle(Point.Empty, trim.Size));
+                            bitmap.Save(path, ImageFormat.Png);
+                        }
+
+                        Console.WriteLine($"saved {path} ({trim.Width}x{trim.Height}, scale {scale}, trim dialog)");
+                    }
+
+                    return 0;
                 }
 
                 using (var bitmap = new Bitmap(form.Width, form.Height))

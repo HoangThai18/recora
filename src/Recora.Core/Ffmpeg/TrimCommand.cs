@@ -56,6 +56,32 @@ namespace Recora.Core.Ffmpeg
         internal static string Seconds(TimeSpan value) => value.TotalSeconds.ToString("0.000", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// The length of a file Recora did not record itself (the library only remembers its own): <c>ffmpeg -i</c> prints
+    /// "Duration: 00:01:02.50" on stderr and exits with an error for lack of an output, which is expected.
+    /// </summary>
+    public static class MediaInfoCommand
+    {
+        private static readonly System.Text.RegularExpressions.Regex DurationLine =
+            new System.Text.RegularExpressions.Regex(@"Duration:\s*(\d+):(\d{2}):(\d{2}(?:\.\d+)?)");
+
+        public static FfmpegArgs Build(string input) => new FfmpegArgs().Add("-hide_banner", "-nostdin", "-i", input);
+
+        public static TimeSpan? ParseDuration(string stderr)
+        {
+            var match = DurationLine.Match(stderr ?? string.Empty);
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            var seconds = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) * 3600
+                + int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) * 60
+                + double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+            return seconds > 0 ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null;
+        }
+    }
+
     /// <summary>One still of a video, scaled into a fixed box and written as raw BGRA to stdout, for the cut dialog.</summary>
     public static class FramePreviewCommand
     {
