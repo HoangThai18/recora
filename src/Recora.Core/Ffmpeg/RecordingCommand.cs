@@ -173,9 +173,18 @@ namespace Recora.Core.Ffmpeg
                 return CpuConversion(kind, scaled, width, height);
             }
 
-            if (plan.DownloadFrames)
+            var gpuSize = scaled ? Invariant($"width={width}:height={height}:") : string.Empty;
+
+            switch (plan.Route)
             {
-                return "hwdownload,format=bgra," + CpuConversion(kind, scaled, width, height, FastScaler);
+                case FrameRoute.Nv12Textures:
+                    return $"scale_d3d11={gpuSize}format=nv12";
+
+                case FrameRoute.Nv12Memory:
+                    return $"scale_d3d11={gpuSize}format=nv12,hwdownload,format=nv12";
+
+                case FrameRoute.BgraMemory:
+                    return "hwdownload,format=bgra," + CpuConversion(kind, scaled, width, height, FastScaler);
             }
 
             switch (kind)
@@ -186,8 +195,7 @@ namespace Recora.Core.Ffmpeg
                     return scaled ? Invariant($"scale_d3d11=width={width}:height={height}") : string.Empty;
 
                 case EncoderKind.Qsv:
-                    var size = scaled ? Invariant($"width={width}:height={height}:") : string.Empty;
-                    return $"scale_d3d11={size}format=nv12,hwmap=derive_device=qsv,format=qsv";
+                    return $"scale_d3d11={gpuSize}format=nv12,hwmap=derive_device=qsv,format=qsv";
 
                 default:
                     return "hwdownload,format=bgra," + CpuConversion(kind, scaled, width, height, FastScaler);
@@ -223,12 +231,12 @@ namespace Recora.Core.Ffmpeg
                 return new string[0];
             }
 
-            if (plan.Backend == CaptureBackend.Gdigrab || plan.DownloadFrames || plan.Encoder.Kind == EncoderKind.X264 || plan.Encoder.Kind == EncoderKind.MediaFoundation)
+            if (plan.Backend == CaptureBackend.Gdigrab || plan.Route == FrameRoute.BgraMemory || plan.Encoder.Kind == EncoderKind.X264 || plan.Encoder.Kind == EncoderKind.MediaFoundation)
             {
                 return new[] { "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv" };
             }
 
-            if (plan.Encoder.Kind == EncoderKind.Qsv)
+            if (plan.Encoder.Kind == EncoderKind.Qsv || plan.Route == FrameRoute.Nv12Textures || plan.Route == FrameRoute.Nv12Memory)
             {
                 return new[] { "-colorspace", "bt470bg", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv" };
             }

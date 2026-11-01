@@ -108,7 +108,7 @@ namespace Recora.App.UI
                 (EncoderChoice.Qsv, Mark(EncoderKind.Qsv, "Intel")),
                 (EncoderChoice.X264, "CPU")),
                 (autoEncoder == null ? string.Empty : "Tự động trên máy này: " + autoEncoder + ". ")
-                + "Ghi bằng GPU không làm tụt FPS game. CPU (x264) chỉ nên dùng khi máy không có GPU nào ghi được.");
+                + "Ghi bằng GPU nhẹ hơn CPU rất nhiều, nhất là với game. CPU (x264) chỉ nên dùng khi máy không có GPU nào ghi được.");
             encoding.Body.Controls.Add(Toggle("Ưu tiên FPS game khi ghi bằng CPU (720p, 30 fps)", settings.LightOnCpu, v => settings.LightOnCpu = v));
             Row(encoding, "Định dạng file", Choice(settings.Container, v => settings.Container = v,
                 (ContainerFormat.Mp4, "MP4"), (ContainerFormat.Mkv, "MKV")),

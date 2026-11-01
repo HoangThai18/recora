@@ -30,41 +30,34 @@ namespace Recora.App.Recording
                 foreach (var encoder in encoders)
                 {
                     string? outcome = null;
-                    var texturesFailed = false;
+                    var failedRoutes = new List<FrameRoute>();
                     var (fps, scale) = request.LightOnCpu && !encoder.IsHardware
                         ? LightCpuProfile.Apply(request.Fps, request.Scale)
                         : (request.Fps, request.Scale);
 
-                    foreach (var download in FrameRoutes.For(backend, encoder.Kind, memory.TextureInputFailed(encoder)))
+                    foreach (var route in FrameRoutes.For(backend, encoder.Kind, memory.FailedRoutes(encoder)))
                     {
                         var plan = new RecordingPlan(
-                            request.Source, backend, encoder, request.Quality, fps, scale, request.DrawCursor, Layout(request), request.MaxGigabytesPerHour, download);
+                            request.Source, backend, encoder, request.Quality, fps, scale, request.DrawCursor, Layout(request), request.MaxGigabytesPerHour, route);
                         outcome = tryOpen(plan);
 
                         if (outcome == null)
                         {
                             memory.Worked(encoder);
-
-                            // Only memory working where textures just failed proves the textures were the problem: a
-                            // capture hiccup fails both routes and must not move a healthy GPU off its lightest path.
-                            if (!download || texturesFailed)
-                            {
-                                memory.RememberTextureInput(encoder, worked: !download);
-                            }
-
+                            memory.RememberRoutes(encoder, route, failedRoutes);
                             return;
                         }
 
-                        var route = download ? " (system memory)" : string.Empty;
-                        failures.Add($"{backend}/{encoder.FfmpegName}{route}: {outcome}");
-                        Log.Warn($"candidate {backend}/{encoder.FfmpegName}{route} failed: {outcome}");
+                        var label = encoder.FfmpegName + FrameRoutes.Label(route);
+                        failures.Add($"{backend}/{label}: {outcome}");
+                        Log.Warn($"candidate {backend}/{label} failed: {outcome}");
 
                         if (IsCaptureFailure(outcome))
                         {
                             break;
                         }
 
-                        texturesFailed |= !download;
+                        failedRoutes.Add(route);
                     }
 
                     // A capture that cannot even open fails the same way for every encoder: skip to the next backend,

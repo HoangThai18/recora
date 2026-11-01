@@ -5,18 +5,24 @@ namespace Recora.Core.Tests.Encoding
 {
     public class FrameRoutesTests
     {
+        private static readonly FrameRoute[] None = new FrameRoute[0];
+
         [Theory]
         [InlineData(CaptureBackend.Ddagrab)]
         [InlineData(CaptureBackend.Gfxcapture)]
-        public void For_AmfOnGpuCapture_TriesTexturesThenMemory(CaptureBackend backend)
+        public void For_AmfOnGpuCapture_TriesLightestFirstAndCpuConversionLast(CaptureBackend backend)
         {
-            Assert.Equal(new[] { false, true }, FrameRoutes.For(backend, EncoderKind.Amf, texturesKnownToFail: false));
+            Assert.Equal(
+                new[] { FrameRoute.Textures, FrameRoute.Nv12Textures, FrameRoute.Nv12Memory, FrameRoute.BgraMemory },
+                FrameRoutes.For(backend, EncoderKind.Amf, None));
         }
 
         [Fact]
-        public void For_AmfWhenTexturesKnownToFail_TriesMemoryFirst()
+        public void For_AmfWithRoutesKnownToFail_MovesThemLastAndStillOffersThem()
         {
-            Assert.Equal(new[] { true, false }, FrameRoutes.For(CaptureBackend.Ddagrab, EncoderKind.Amf, texturesKnownToFail: true));
+            Assert.Equal(
+                new[] { FrameRoute.Nv12Memory, FrameRoute.BgraMemory, FrameRoute.Textures, FrameRoute.Nv12Textures },
+                FrameRoutes.For(CaptureBackend.Ddagrab, EncoderKind.Amf, new[] { FrameRoute.Textures, FrameRoute.Nv12Textures }));
         }
 
         [Theory]
@@ -24,7 +30,7 @@ namespace Recora.Core.Tests.Encoding
         [InlineData(CaptureBackend.Dshow)]
         public void For_AmfOnCpuFrames_HasOneRoute(CaptureBackend backend)
         {
-            Assert.Equal(new[] { false }, FrameRoutes.For(backend, EncoderKind.Amf, texturesKnownToFail: true));
+            Assert.Equal(new[] { FrameRoute.Textures }, FrameRoutes.For(backend, EncoderKind.Amf, new[] { FrameRoute.Textures }));
         }
 
         [Theory]
@@ -33,7 +39,7 @@ namespace Recora.Core.Tests.Encoding
         [InlineData(EncoderKind.X264)]
         public void For_OtherEncoders_HaveOneRoute(EncoderKind kind)
         {
-            Assert.Equal(new[] { false }, FrameRoutes.For(CaptureBackend.Ddagrab, kind, texturesKnownToFail: false));
+            Assert.Equal(new[] { FrameRoute.Textures }, FrameRoutes.For(CaptureBackend.Ddagrab, kind, None));
         }
 
         [Theory]

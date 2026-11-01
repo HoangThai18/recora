@@ -159,7 +159,7 @@ namespace Recora.Core.Tests.Ffmpeg
         [Fact]
         public void FilterChain_AmfDownloadingFrames_ConvertsToNv12WithBt709Tags()
         {
-            var args = Build(Plan(kind: EncoderKind.Amf) with { DownloadFrames = true });
+            var args = Build(Plan(kind: EncoderKind.Amf) with { Route = FrameRoute.BgraMemory });
 
             Assert.Equal("hwdownload,format=bgra,scale=out_color_matrix=bt709:out_range=tv,format=nv12", ValueAfter(args, "-vf"));
             Assert.Equal("bt709", ValueAfter(args, "-colorspace"));
@@ -169,10 +169,28 @@ namespace Recora.Core.Tests.Ffmpeg
         [Fact]
         public void FilterChain_AmfDownloadingScaledFrames_ScalesOnTheCpu()
         {
-            var args = Build(Plan(kind: EncoderKind.Amf, scale: OutputScale.P720) with { DownloadFrames = true });
+            var args = Build(Plan(kind: EncoderKind.Amf, scale: OutputScale.P720) with { Route = FrameRoute.BgraMemory });
 
             Assert.Contains("scale=1280:720:flags=fast_bilinear:", ValueAfter(args, "-vf"));
             Assert.DoesNotContain("scale_d3d11", ValueAfter(args, "-vf"));
+        }
+
+        [Fact]
+        public void FilterChain_AmfNv12Textures_ConvertsOnTheGpuAndStaysThere()
+        {
+            var args = Build(Plan(kind: EncoderKind.Amf) with { Route = FrameRoute.Nv12Textures });
+
+            Assert.Equal("scale_d3d11=format=nv12", ValueAfter(args, "-vf"));
+            Assert.Equal("bt470bg", ValueAfter(args, "-colorspace"));
+        }
+
+        [Fact]
+        public void FilterChain_AmfNv12Memory_ConvertsAndScalesOnTheGpuBeforeCopying()
+        {
+            var args = Build(Plan(kind: EncoderKind.Amf, scale: OutputScale.P720) with { Route = FrameRoute.Nv12Memory });
+
+            Assert.Equal("scale_d3d11=width=1280:height=720:format=nv12,hwdownload,format=nv12", ValueAfter(args, "-vf"));
+            Assert.Equal("bt470bg", ValueAfter(args, "-colorspace"));
         }
 
         [Fact]

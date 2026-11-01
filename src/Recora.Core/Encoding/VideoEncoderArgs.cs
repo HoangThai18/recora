@@ -112,15 +112,17 @@ namespace Recora.Core.Encoding
                     // QP has no ceiling either, so a size limit also moves H.264 and H.265 to QVBR (amfenc_h264.c/_hevc.c).
                     args.AddRange(new[]
                     {
-                        "-usage", "transcoding", "-quality", "balanced", "-rc", "qvbr",
+                        "-usage", "lowlatency", "-quality", "speed", "-rc", "qvbr",
                         "-qvbr_quality_level", Num(q), "-b:v", Kbps(maxKbps / 2), "-maxrate", Kbps(maxKbps),
                     });
                     break;
 
                 case EncoderKind.Amf:
+                    // Sharpness comes from the QP. "speed" only costs a little file size, and on an APU the encoder
+                    // shares memory bandwidth with the game being recorded.
                     args.AddRange(new[]
                     {
-                        "-usage", "transcoding", "-quality", "balanced", "-rc", "cqp",
+                        "-usage", "lowlatency", "-quality", "speed", "-rc", "cqp",
                         "-qp_i", Num(q), "-qp_p", Num(q + 2),
                     });
                     break;

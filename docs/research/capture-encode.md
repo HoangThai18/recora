@@ -17,6 +17,8 @@ Nguồn `ddagrab` / `gfxcapture` cho ra khung D3D11 định dạng BGRA.
 |---|---|---|---|
 | NVENC (`h264_nvenc`, `hevc_nvenc`, `av1_nvenc`) | có (`ff_nvenc_pix_fmts` gồm `D3D11`, `RGB32`/`BGR32`) | không | `libavcodec/nvenc.c` |
 | AMF (`h264_amf`, `hevc_amf`, `av1_amf`) | có (`D3D11`, `BGRA`) | không | `libavcodec/amfenc.c` |
+| AMF, GPU đổi màu rồi đưa texture | NV12 D3D11 | `scale_d3d11=format=nv12` (thử thứ hai, chưa kiểm trên máy AMD thật) | P6-T07 |
+| AMF, GPU đổi màu rồi chép về RAM | không cần | `scale_d3d11=format=nv12,hwdownload,format=nv12`: chỉ chép 1,5 byte mỗi điểm ảnh, CPU không đổi màu (thử thứ ba, chưa kiểm trên máy AMD thật) | P6-T07 |
 | AMF, đường dự phòng | không cần | `hwdownload,format=bgra,scale=...,format=nv12`, dùng khi AMF từ chối khung D3D11 (`SubmitInput() failed with error 18`, thấy trên AMD Radeon tích hợp, Windows 10 19045) | nhật ký máy thật 01/11/2026 |
 | QSV (`h264_qsv`, `hevc_qsv`, `av1_qsv`) | không, chỉ `NV12`/`QSV` | `scale_d3d11=format=nv12,hwmap=derive_device=qsv,format=qsv` | `qsvenc_h264.c`, `qsvenc_av1.c` |
 | Media Foundation (`h264_mf`, `hevc_mf`) | chỉ D3D11 với NV12 | `hwdownload,format=bgra,format=nv12` (an toàn hơn đường D3D11 với MFT phần mềm) | `libavcodec/mfenc.c` |

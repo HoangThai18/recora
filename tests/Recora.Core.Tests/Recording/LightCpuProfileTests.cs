@@ -18,7 +18,7 @@ namespace Recora.Core.Tests.Recording
                 scale,
                 DrawCursor: true,
                 AudioLayout.None,
-                DownloadFrames: download);
+                Route: route);
 
         [Theory]
         [InlineData(60, OutputScale.Original, 30, OutputScale.P720)]
@@ -39,7 +39,15 @@ namespace Recora.Core.Tests.Recording
         [Fact]
         public void UsesCpu_HardwareEncoderWithDownloadedFrames_IsTrue()
         {
-            Assert.True(Plan(EncoderKind.Amf, download: true).UsesCpu);
+            Assert.True(Plan(EncoderKind.Amf, route: FrameRoute.BgraMemory).UsesCpu);
+        }
+
+        [Theory]
+        [InlineData(FrameRoute.Nv12Textures)]
+        [InlineData(FrameRoute.Nv12Memory)]
+        public void UsesCpu_GpuConvertedFrames_IsFalse(FrameRoute route)
+        {
+            Assert.False(Plan(EncoderKind.Amf, route: route).UsesCpu);
         }
 
         [Fact]

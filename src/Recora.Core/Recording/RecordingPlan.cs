@@ -45,7 +45,7 @@ namespace Recora.Core.Recording
 
     /// <summary>Everything that decides one segment's FFmpeg command, already resolved to a backend and an encoder.</summary>
     /// <param name="MaxGigabytesPerHour">The user's size limit (0 for none), shared between the picture and the sound.</param>
-    /// <param name="DownloadFrames">Hand a GPU encoder frames from system memory instead of the capture's D3D11 textures.</param>
+    /// <param name="Route">How frames reach a GPU encoder.</param>
     public sealed record RecordingPlan(
         CaptureSource Source,
         CaptureBackend Backend,
@@ -56,10 +56,13 @@ namespace Recora.Core.Recording
         bool DrawCursor,
         AudioLayout Audio,
         int MaxGigabytesPerHour = 0,
-        bool DownloadFrames = false)
+        FrameRoute Route = FrameRoute.Textures)
     {
-        /// <summary>Frames or encoding pass through the CPU, so this recording competes with a game for its cores.</summary>
-        public bool UsesCpu => !Encoder.IsHardware || DownloadFrames || Backend == CaptureBackend.Gdigrab;
+        /// <summary>
+        /// Encoding or pixel conversion runs on the CPU, so this recording competes with a game for its cores. Copying a
+        /// converted NV12 frame does not count: it costs little, and low priority would only drop frames from the video.
+        /// </summary>
+        public bool UsesCpu => !Encoder.IsHardware || Route == FrameRoute.BgraMemory || Backend == CaptureBackend.Gdigrab;
 
         public int AudioTrackCount => Audio switch
         {

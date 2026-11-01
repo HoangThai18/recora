@@ -275,7 +275,7 @@ namespace Recora.App.Recording
                 }
 
                 EncoderName = plan.Encoder.FfmpegName;
-                Log.Info($"replay buffer: last {seconds} s with {plan.Backend}/{plan.Encoder.FfmpegName}{(plan.DownloadFrames ? " (system memory)" : string.Empty)}");
+                Log.Info($"replay buffer: last {seconds} s with {plan.Backend}/{plan.Encoder.FfmpegName}{FrameRoutes.Label(plan.Route)}");
                 return null;
             }
 

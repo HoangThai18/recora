@@ -11,6 +11,11 @@ namespace Recora.App.Recording
     /// </summary>
     internal sealed class EncoderMemory
     {
+        private static readonly FrameRoute[] AllRoutes =
+        {
+            FrameRoute.Textures, FrameRoute.Nv12Textures, FrameRoute.Nv12Memory, FrameRoute.BgraMemory,
+        };
+
         private readonly EncoderProbeCache _cache;
 
         public EncoderMemory(AppSettings settings, string fingerprint)
@@ -43,19 +48,28 @@ namespace Recora.App.Recording
             }
         }
 
-        /// <summary>Has this encoder refused the capture's D3D11 textures on this PC, whatever it does with system memory?</summary>
-        public bool TextureInputFailed(VideoEncoder encoder) => _cache.Failed.Contains(TextureKey(encoder));
+        /// <summary>The frame routes this encoder has refused on this PC.</summary>
+        public IReadOnlyCollection<FrameRoute> FailedRoutes(VideoEncoder encoder) =>
+            AllRoutes.Where(route => _cache.Failed.Contains(RouteKey(encoder, route))).ToList();
 
-        public void RememberTextureInput(VideoEncoder encoder, bool worked)
+        /// <summary>
+        /// Only a route working where others just failed proves those routes were the problem: a capture hiccup fails
+        /// them all and must not move a healthy GPU off its lightest path, so nothing is recorded unless one worked.
+        /// </summary>
+        public void RememberRoutes(VideoEncoder encoder, FrameRoute worked, IEnumerable<FrameRoute> failedJustNow)
         {
-            var key = TextureKey(encoder);
-            if (worked == !_cache.Failed.Contains(key))
-            {
-                return;
-            }
+            var workedKey = RouteKey(encoder, worked);
+            var failed = _cache.Failed
+                .Where(name => name != workedKey)
+                .Concat(failedJustNow.Select(route => RouteKey(encoder, route)))
+                .Distinct()
+                .ToArray();
 
-            _cache.Failed = worked ? _cache.Failed.Where(n => n != key).ToArray() : _cache.Failed.Concat(new[] { key }).ToArray();
-            Dirty = true;
+            if (!failed.SequenceEqual(_cache.Failed))
+            {
+                _cache.Failed = failed;
+                Dirty = true;
+            }
         }
 
         /// <summary>User's forced choice first, then encoders known to work, then untried ones, known failures last.</summary>
@@ -87,6 +101,13 @@ namespace Recora.App.Recording
                 .ToList();
         }
 
-        private static string TextureKey(VideoEncoder encoder) => encoder.FfmpegName + "+textures";
+        // "+textures" is what settings saved before there were more routes call the same thing.
+        private static string RouteKey(VideoEncoder encoder, FrameRoute route) => route switch
+        {
+            FrameRoute.Textures => encoder.FfmpegName + "+textures",
+            FrameRoute.Nv12Textures => encoder.FfmpegName + "+nv12-textures",
+            FrameRoute.Nv12Memory => encoder.FfmpegName + "+nv12-memory",
+            _ => encoder.FfmpegName + "+memory",
+        };
     }
 }
