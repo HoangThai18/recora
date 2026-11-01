@@ -10,6 +10,7 @@ using System.Windows.Forms;
 using Recora.App.Audio;
 using Recora.App.Logging;
 using Recora.App.Recording;
+using Recora.Core.Audio;
 using Recora.Core.Capture;
 using Recora.Core.Encoding;
 using Recora.Core.Recording;
@@ -151,14 +152,19 @@ namespace Recora.App
                 StartWithWindows = true,
                 HideRecoraFromVideo = false,
                 Countdown = true,
+                MaxGigabytesPerHour = 4,
+                ReplayEnabled = true,
+                ReplaySeconds = 120,
+                HotkeyReplay = "Ctrl+Alt+F10",
+                MicProcessing = new MicProcessingSettings { GainDb = 9, HighPass = true, NoiseGate = true, GateThresholdDb = -52, Compressor = true, Limiter = false },
             };
 
             SettingsStore.Save(path, changed);
             var loaded = SettingsStore.Load(path);
             var differences = typeof(AppSettings).GetProperties()
                 .Where(p => p.CanRead && p.PropertyType != typeof(EncoderProbeCache))
-                .Where(p => !Equals(p.GetValue(changed), p.GetValue(loaded)))
-                .Select(p => $"{p.Name}: {p.GetValue(changed)} -> {p.GetValue(loaded)}")
+                .Where(p => !SameValue(p.GetValue(changed), p.GetValue(loaded)))
+                .Select(p => $"{p.Name}: {Describe(p.GetValue(changed))} -> {Describe(p.GetValue(loaded))}")
                 .ToList();
 
             foreach (var line in differences)
@@ -169,6 +175,22 @@ namespace Recora.App
             Console.WriteLine(differences.Count == 0 ? "settings roundtrip OK" : "settings roundtrip FAILED");
             return differences.Count == 0 ? 0 : 1;
         }
+
+        /// <summary>Values compare by Equals; nested settings objects (the microphone chain) compare field by field.</summary>
+        private static bool SameValue(object? a, object? b)
+        {
+            if (a == null || b == null || a.GetType().IsValueType || a is string)
+            {
+                return Equals(a, b);
+            }
+
+            return a.GetType() == b.GetType()
+                && a.GetType().GetProperties().Where(p => p.CanRead && p.GetIndexParameters().Length == 0).All(p => Equals(p.GetValue(a), p.GetValue(b)));
+        }
+
+        private static string Describe(object? value) => value == null || value.GetType().IsValueType || value is string
+            ? value?.ToString() ?? "null"
+            : string.Join(", ", value.GetType().GetProperties().Select(p => p.Name + "=" + p.GetValue(value)));
 
         private static (Recorder Recorder, CaptureEnvironment Environment) NewRecorder()
         {
