@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using NAudio.CoreAudioApi;
 using Recora.App.Audio;
+using Recora.App.Editor;
 using Recora.App.Logging;
 using Recora.App.Native;
 using Recora.App.Platform;
@@ -47,10 +48,14 @@ namespace Recora.App
         private readonly List<WasapiSource> _replayAudio = new List<WasapiSource>();
         private readonly Timer _replayRestart;
         private ReplayBuffer? _replay;
+        private EditPage? _edit;
+        private CliporaSession? _clipora;
+        private bool _editorBusy;
         private bool _replayBusy;
         private bool _replaySaving;
         private string? _replaySignature;
         private DateTime _replayRetryAt;
+        private int _replayFailures;
         private CaptureEnvironment? _environment;
         private EncoderMemory? _memory;
         private Recorder? _recorder;
@@ -73,6 +78,7 @@ namespace Recora.App
         private bool _activeAudioOnly;
         private bool _preparing;
         private Countdown? _countdown;
+        private RecordingBar? _bar;
 
         public MainController(MainForm form, AppSettings settings, string settingsPath)
         {
@@ -122,6 +128,7 @@ namespace Recora.App
             _form.ModeSelected += (_, mode) => OnModeSelected(mode);
             _form.ShowRequested += (_, _) => ShowWindow();
             _form.FormClosing += OnFormClosing;
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
             _form.HandleCreated += (_, _) => ApplyCaptureExclusion();
             _form.Home.MonitorSelected += (_, device) =>
             {
@@ -148,6 +155,8 @@ namespace Recora.App
                 }
 
                 _settings.ReplayEnabled = _form.Home.Replay.Checked;
+                _replayFailures = 0;
+                ApplyHotkeys();
                 SettingsChanged();
                 if (_settings.ReplayEnabled)
                 {
@@ -255,6 +264,10 @@ namespace Recora.App
             }
 
             _disposed = true;
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+
+            // Clipora lives on after Recora as a window of its own: an unsaved edit must never close with us.
+            _edit?.Host.Release();
             CloseFrame();
             CloseExtras();
             _replayRestart.Dispose();
@@ -300,7 +313,14 @@ namespace Recora.App
 
             var library = new LibraryPage(() => LibraryFiles.Scan(OutputFolder));
             library.TrimRequested += async (_, item) => await Trim(library, item);
+            library.EditRequested += async (_, item) => await OpenEditor(new[] { item.Path });
             _form.SetPage(PageKind.Library, library);
+
+            _edit = new EditPage();
+            _edit.Open.Click += async (_, _) => await OpenEditor(new string[0]);
+            _edit.Detach.Click += (_, _) => DetachEditor();
+            _form.SetPage(PageKind.Edit, _edit);
+            ShowEditorIntro(null);
             var about = new AboutPage(Program.Version, environment.FfmpegVersion);
             about.CheckUpdate.Click += async (_, _) =>
             {
@@ -425,10 +445,30 @@ namespace Recora.App
             }
         }
 
+        /// <summary>Windows switched between light and dark apps; follow it when the look is "Theo Windows".</summary>
+        private void OnUserPreferenceChanged(object sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+        {
+            if (e.Category == Microsoft.Win32.UserPreferenceCategory.General && _settings.Theme == ThemeMode.System && !_disposed)
+            {
+                _form.BeginInvoke(new Action(ApplyTheme));
+            }
+        }
+
+        private void ApplyTheme()
+        {
+            var palette = Theme.For(_settings.Theme);
+            if (!ReferenceEquals(palette, Theme.Current))
+            {
+                Log.Info("look: " + palette.Name);
+                Theme.Use(palette, _form);
+            }
+        }
+
         private void SettingsChanged()
         {
             _saveTimer.Stop();
             _saveTimer.Start();
+            ApplyTheme();
             ResetMeters();
             UpdateDisk();
             RefreshHome();
@@ -648,8 +688,14 @@ namespace Recora.App
                 [HotkeyAction.Record] = _settings.HotkeyRecord,
                 [HotkeyAction.Pause] = _settings.HotkeyPause,
                 [HotkeyAction.Screenshot] = _settings.HotkeyScreenshot,
-                [HotkeyAction.SaveReplay] = _settings.HotkeyReplay,
             };
+
+            // Alt+F10 belongs to other apps (Visual Studio, IntelliJ) unless the user wants moments kept.
+            if (_settings.ReplayEnabled)
+            {
+                keys[HotkeyAction.SaveReplay] = _settings.HotkeyReplay;
+            }
+
             var failed = _hotkeys.Apply(keys);
             _form.PageOf<HotkeysPage>(PageKind.Hotkeys)?.ShowConflicts(failed.Select(action => action switch
             {
@@ -1006,10 +1052,15 @@ namespace Recora.App
                 CloseAudio();
                 CloseExtras();
             }
-            else if (frame.HasValue)
+            else
             {
-                _frame = new RegionFrame(frame.Value);
-                _frame.Show();
+                if (frame.HasValue)
+                {
+                    _frame = new RegionFrame(frame.Value);
+                    _frame.Show();
+                }
+
+                OpenBar(source is DeviceSource || audioOnly != null ? SelectedMonitor().Target.Bounds : source.Monitor.Bounds);
             }
 
             if (_memory != null && _memory.Dirty)
@@ -1157,8 +1208,37 @@ namespace Recora.App
             }
         }
 
+        /// <summary>The recording bar on the recorded screen; Windows that can't hide it from capture get none.</summary>
+        private void OpenBar(PixelRect screen)
+        {
+            if (!_settings.RecordingOverlay)
+            {
+                return;
+            }
+
+            try
+            {
+                _bar = RecordingBar.Open(screen, _settings.OverlayCorner);
+                if (_bar != null)
+                {
+                    _bar.PauseClicked += (_, _) => TogglePause();
+                    _bar.StopClicked += (_, _) => ToggleRecord();
+                    ShowStatus();
+                }
+            }
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is ExternalException || error is ArgumentException)
+            {
+                Log.Error("recording bar failed", error);
+                _bar?.Dispose();
+                _bar = null;
+            }
+        }
+
         private void CloseExtras()
         {
+            _bar?.Close();
+            _bar?.Dispose();
+            _bar = null;
             _clicks?.Dispose();
             _clicks = null;
             _overlay?.Close();
@@ -1204,8 +1284,16 @@ namespace Recora.App
         private async void ResumeReplay()
         {
             var replay = _replay;
-            if (replay == null || _disposed || _exiting || !_settings.ReplayEnabled || replay.IsRunning || _replayBusy || Busy || _preparing)
+            if (replay == null || _disposed || _exiting || !_settings.ReplayEnabled || replay.IsRunning)
             {
+                return;
+            }
+
+            if (_replayBusy || Busy || _preparing)
+            {
+                // Something else holds the screen for a moment (picking a region for F11, opening a recording):
+                // try again shortly instead of staying off. A recording resumes the buffer itself when it ends.
+                RetryReplayIn(TimeSpan.FromSeconds(2));
                 return;
             }
 
@@ -1218,27 +1306,40 @@ namespace Recora.App
                 var seconds = _settings.ReplaySeconds;
                 _replaySignature = ReplaySignature();
                 await Task.Run(() => replay.Start(request, seconds));
+                _replayFailures = 0;
                 if (_memory != null && _memory.Dirty)
                 {
                     SaveSettings();
                 }
             }
-            catch (Exception error) when (error is RecoraException || error is IOException || error is UnauthorizedAccessException)
+            catch (Exception error) when (error is RecoraException || error is IOException || error is UnauthorizedAccessException || error is System.ComponentModel.Win32Exception)
             {
                 Log.Error("replay buffer failed to start", error);
                 CloseAudio(_replayAudio);
-                _replayRetryAt = DateTime.UtcNow.AddSeconds(30);
-                _tray.Notify("Không giữ được khoảnh khắc", Explain(error is RecoraException known ? known.Code : "unexpected"), ToolTipIcon.Warning);
+
+                // Told once; later attempts back off (30 s, 1, 2, 4… up to 15 minutes) and stay quiet.
+                _replayFailures++;
+                RetryReplayIn(TimeSpan.FromSeconds(Math.Min(900, 30 * Math.Pow(2, _replayFailures - 1))));
+                if (_replayFailures == 1)
+                {
+                    _tray.Notify("Không giữ được khoảnh khắc", Explain(error is RecoraException known ? known.Code : "unexpected") + " Recora sẽ tự thử lại.", ToolTipIcon.Warning);
+                }
             }
             finally
             {
                 _replayBusy = false;
             }
 
-            // F12 may have been pressed while the buffer was opening: the recording wins.
+            // F12 may have been pressed while the buffer was opening: the recording wins. A region pick (F11) only
+            // borrows the screen, so the buffer comes back right after it.
             if (Busy || _preparing || !_settings.ReplayEnabled)
             {
+                var wanted = _settings.ReplayEnabled;
                 await StopReplay();
+                if (wanted && !Busy)
+                {
+                    RetryReplayIn(TimeSpan.FromSeconds(2));
+                }
             }
 
             ShowStatus();
@@ -1253,8 +1354,9 @@ namespace Recora.App
                 return;
             }
 
-            // A start or a save in progress finishes first; stopping under it would delete the chunks it reads.
-            for (var i = 0; i < 150 && (_replayBusy || _replaySaving); i++)
+            // A save in progress always finishes first (stopping under it would delete the chunks it copies); a start
+            // gets up to 15 s.
+            for (var i = 0; _replaySaving || (_replayBusy && i < 150); i++)
             {
                 await Task.Delay(100);
             }
@@ -1292,6 +1394,10 @@ namespace Recora.App
                 if (Busy)
                 {
                     _tray.Notify("Đang ghi", $"Recora đang ghi cả màn hình: bấm {_settings.HotkeyRecord} để dừng và lưu.");
+                }
+                else if (_settings.ReplayEnabled)
+                {
+                    _tray.Notify("Đang mở lại", "Recora đang mở lại bộ giữ khoảnh khắc (màn hình vừa bị Windows chiếm hoặc ổ đầy). Thử lại sau vài giây.");
                 }
                 else
                 {
@@ -1351,15 +1457,18 @@ namespace Recora.App
                 if (free.HasValue && DiskGuard.ShouldStop(free.Value))
                 {
                     await StopReplay();
-                    _tray.Notify("Ổ đĩa sắp đầy", "Còn dưới 500 MB trống nên Recora đã ngừng giữ khoảnh khắc.", ToolTipIcon.Warning);
+                    _tray.Notify("Ổ đĩa sắp đầy", "Còn dưới 500 MB trống nên Recora đã ngừng giữ khoảnh khắc; dọn bớt ổ là Recora tự giữ lại.", ToolTipIcon.Warning);
+                    RetryReplayIn(TimeSpan.FromMinutes(1));
                     ShowStatus();
                 }
             }
             else if (replay.HasDied)
             {
+                // ddagrab ends when Windows takes the screen away (UAC, lock screen, a game switching to exclusive
+                // fullscreen). Reopen almost at once so the next moment is held again.
                 Log.Warn("replay buffer's ffmpeg exited; restarting");
                 await StopReplay();
-                _replayRetryAt = DateTime.UtcNow.AddSeconds(10);
+                RetryReplayIn(TimeSpan.FromSeconds(1));
             }
             else if (_settings.ReplayEnabled && !Busy && !_preparing && DateTime.UtcNow >= _replayRetryAt && _replayRetryAt != DateTime.MinValue)
             {
@@ -1370,6 +1479,15 @@ namespace Recora.App
             ShowReplayState();
         }
 
+        private void RetryReplayIn(TimeSpan delay)
+        {
+            var at = DateTime.UtcNow + delay;
+            if (_replayRetryAt == DateTime.MinValue || at < _replayRetryAt)
+            {
+                _replayRetryAt = at;
+            }
+        }
+
         private void ShowReplayState()
         {
             var replay = _replay;
@@ -1378,28 +1496,28 @@ namespace Recora.App
             string state;
             if (replay == null)
             {
-                state = "> đang kiểm tra máy…";
+                state = "Đang kiểm tra máy…";
             }
             else if (_replaySaving)
             {
-                state = "> đang lưu khoảnh khắc…";
+                state = "Đang lưu khoảnh khắc…";
             }
             else if (replay.IsRunning)
             {
                 var held = replay.Held;
-                state = $"> đang giữ {(int)held.TotalMinutes}:{held.Seconds:00} / {length} · {replay.EncoderName}";
+                state = $"Đang giữ {(int)held.TotalMinutes}:{held.Seconds:00} / {length} · {replay.EncoderName}";
             }
             else if (Busy || _preparing)
             {
-                state = "> tạm nghỉ trong lúc ghi thường";
+                state = "Tạm nghỉ trong lúc ghi thường";
             }
             else if (_replayBusy)
             {
-                state = "> đang mở bộ ghi…";
+                state = "Đang mở bộ ghi…";
             }
             else
             {
-                state = _settings.ReplayEnabled ? "> chưa chạy được, Recora sẽ thử lại" : "> đang tắt";
+                state = _settings.ReplayEnabled ? "Chưa chạy được, Recora sẽ thử lại" : "Đang tắt";
             }
 
             _form.Home.ShowReplay(hint, state, replay != null && replay.IsRunning && !_replaySaving);
@@ -1417,6 +1535,109 @@ namespace Recora.App
         });
 
         private static string ReplayLengthText(int seconds) => seconds < 60 ? seconds + " giây" : seconds / 60 + " phút";
+
+        /// <summary>
+        /// "Dựng phim": shows Clipora inside the page, starting (and if needed downloading) it first, then puts
+        /// <paramref name="paths"/> on a new timeline. A Clipora already running is reused, embedded again if detached.
+        /// </summary>
+        private async Task OpenEditor(IReadOnlyList<string> paths)
+        {
+            var page = _edit;
+            if (page == null || _editorBusy)
+            {
+                return;
+            }
+
+            _form.ShowPage(PageKind.Edit);
+            _editorBusy = true;
+            try
+            {
+                var session = _clipora;
+                if (session == null || !session.IsAlive)
+                {
+                    var install = CliporaRuntime.Find();
+                    if (install == null)
+                    {
+                        page.ShowIntro("Đang tải…", "Đang hỏi bản Clipora mới nhất…", busy: true);
+                        void Progress(long done, long total) => _form.BeginInvoke(new Action(() =>
+                            page.ShowProgress(done, total, $"Đang tải Clipora: {LibraryIndex.FormatBytes(done)} / {LibraryIndex.FormatBytes(total)}")));
+                        install = await Task.Run(() => CliporaRuntime.Download(Progress, System.Threading.CancellationToken.None));
+                    }
+
+                    page.ShowIntro("Đang mở…", "Đang mở Clipora…", busy: true);
+                    session = await Task.Run(() => CliporaSession.Start(install.Exe));
+                    var started = session;
+                    session.Process.Exited += (_, _) => _form.BeginInvoke(new Action(() => EditorClosed(started)));
+                    _clipora = session;
+                }
+
+                if (page.Host.Child == IntPtr.Zero)
+                {
+                    var running = session;
+                    var window = await Task.Run(() => running.WaitForWindow(TimeSpan.FromSeconds(45)));
+                    if (window == IntPtr.Zero)
+                    {
+                        throw new RecoraException(session.IsAlive ? "clipora_no_window" : "clipora_exited", "no Clipora window within 45 s");
+                    }
+
+                    page.Host.Adopt(window);
+                }
+
+                page.ShowRunning("Clipora trong Recora · lưu dự án bằng Ctrl+S trong Clipora · đóng Recora thì Clipora tách ra cửa sổ riêng, không mất gì");
+                page.Host.FocusChild();
+                if (paths.Count > 0)
+                {
+                    var editor = session;
+                    var added = await Task.Run(() => editor.AddToTimeline(paths));
+                    if (added == 0)
+                    {
+                        _tray.Notify("Clipora chưa nhận video", "Clipora không nhập được file này. Thử kéo file vào cửa sổ Clipora.", ToolTipIcon.Warning);
+                    }
+                }
+            }
+            catch (Exception error) when (error is RecoraException || error is IOException || error is System.Net.WebException
+                || error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is UnauthorizedAccessException
+                || error is System.IO.InvalidDataException)
+            {
+                Log.Error("editor failed to open", error);
+                ShowEditorIntro(Explain(error is RecoraException known ? known.Code : error is System.Net.WebException ? "clipora_unavailable" : "unexpected"));
+            }
+            finally
+            {
+                _editorBusy = false;
+            }
+        }
+
+        /// <summary>"Tách ra cửa sổ riêng": Clipora keeps running in its own window; Mở trình dựng takes it back in.</summary>
+        private void DetachEditor()
+        {
+            _edit?.Host.Release();
+            ShowEditorIntro("Clipora đang mở ở cửa sổ riêng. Bấm Mở trình dựng để đưa vào lại trong Recora.");
+        }
+
+        private void EditorClosed(CliporaSession session)
+        {
+            if (!ReferenceEquals(_clipora, session))
+            {
+                return;
+            }
+
+            _clipora = null;
+            ShowEditorIntro("Clipora đã đóng.");
+        }
+
+        private void ShowEditorIntro(string? status)
+        {
+            var page = _edit;
+            if (page == null)
+            {
+                return;
+            }
+
+            var install = CliporaRuntime.Find();
+            var button = _clipora != null && _clipora.IsAlive ? "Mở trình dựng" : install != null ? "Mở trình dựng" : "Tải Clipora và mở (khoảng 70 MB)";
+            page.ShowIntro(button, status ?? (install != null ? "Clipora sẵn sàng (" + install.Origin + ")." : "Máy này chưa có Clipora."), busy: false);
+        }
 
         /// <summary>"Cắt": the length comes from the library index, or from FFmpeg for files Recora did not record.</summary>
         private async Task Trim(LibraryPage library, LibraryItem item)
@@ -1570,6 +1791,12 @@ namespace Recora.App
                 : _activeAudioOnly ? $"{LibraryIndex.FormatBytes(status.Bytes)} · {status.Encoder}"
                 : $"{LibraryIndex.FormatBytes(status.Bytes)} · {status.Fps:0} fps · {status.Encoder}";
             _form.Home.Preview.ShowRecording(busy, state == SessionState.Paused, string.IsNullOrEmpty(clock) ? "00:00:00" : clock, details);
+            if (_bar != null && status != null && (state == SessionState.Recording || state == SessionState.Paused))
+            {
+                _bar.Update(state == SessionState.Paused, clock, _activeAudioOnly
+                    ? LibraryIndex.FormatBytes(status.Bytes)
+                    : $"{LibraryIndex.FormatBytes(status.Bytes)} · {status.Fps:0} fps");
+            }
             _form.Record.State = state == SessionState.Paused ? RecordState.Paused : recording ? RecordState.Recording : RecordState.Idle;
             _form.Record.Enabled = state != SessionState.Finalizing && _recorder != null;
             _form.Pause.Enabled = state == SessionState.Recording || state == SessionState.Paused;
@@ -1678,6 +1905,10 @@ namespace Recora.App
             "device_unavailable" => "Không mở được webcam: có thể app khác (Zalo, Zoom, trình duyệt) đang dùng nó. Tắt app đó rồi thử lại.",
             "audio_failed" => "Không ghi được âm thanh ở định dạng này. Thử M4A ở trang chủ chế độ Âm thanh.",
             "region_too_small" => "Vùng ghi quá nhỏ, cần ít nhất 160×90 điểm ảnh.",
+            "clipora_unavailable" => "Không tải được Clipora (mạng hoặc trang phát hành không trả lời). Thử lại, hoặc cài Clipora từ thaipro.store/phan-mem/clipora.",
+            "clipora_corrupt" => "File Clipora tải về không khớp chữ ký SHA-256 nên Recora đã xoá. Thử tải lại.",
+            "clipora_no_window" => "Clipora chạy nhưng không hiện cửa sổ. Clipora cần card đồ hoạ hỗ trợ DirectX 12 hoặc Vulkan; xem nhật ký ở trang Giới thiệu.",
+            "clipora_exited" => "Clipora tắt ngay khi mở. Cập nhật driver card đồ hoạ rồi thử lại; nhật ký của Clipora nằm trong thư mục data cạnh clipora.exe.",
             "trim_failed" => "Không cắt được video này. Thử lại, hoặc xem nhật ký ở trang Giới thiệu.",
             "replay_save_failed" => "Không ghép được khoảnh khắc thành video. Thử lại, hoặc xem nhật ký ở trang Giới thiệu.",
             _ => "Có lỗi không mong muốn. Xem nhật ký ở trang Giới thiệu và gửi kèm khi báo lỗi.",
@@ -1728,7 +1959,12 @@ namespace Recora.App
                 return;
             }
 
-            // Windows 10 2004+; older versions refuse the flag and Recora's window simply stays visible in videos.
+            // Windows 10 2004+ only: older builds would black the window out in videos instead of leaving it out.
+            if (!WindowExclusion.Supported)
+            {
+                return;
+            }
+
             if (!NativeMethods.SetWindowDisplayAffinity(_form.Handle, _settings.HideRecoraFromVideo ? NativeMethods.WdaExcludeFromCapture : NativeMethods.WdaNone))
             {
                 Log.Warn($"SetWindowDisplayAffinity failed: {Marshal.GetLastWin32Error()}");

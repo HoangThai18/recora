@@ -243,7 +243,18 @@ namespace Recora.App.Recording
         {
             var pump = new AudioPump(request.AudioTracks);
             pump.Start();
-            var process = FfmpegProcess.Start(_environment.FfmpegPath, ReplayCommand.Build(plan, folder, pump.PipePaths, seconds), "replay");
+            FfmpegProcess process;
+            try
+            {
+                process = FfmpegProcess.Start(_environment.FfmpegPath, ReplayCommand.Build(plan, folder, pump.PipePaths, seconds), "replay");
+            }
+            catch
+            {
+                // ffmpeg.exe missing or blocked: the pipes and their threads must not outlive the attempt.
+                pump.Stop();
+                throw;
+            }
+
             var clock = Stopwatch.StartNew();
 
             while (!process.HasExited && clock.Elapsed < FirstFrameTimeout && (process.LastProgress?.Frame ?? 0) == 0)

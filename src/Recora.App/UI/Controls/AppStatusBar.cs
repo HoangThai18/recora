@@ -1,28 +1,45 @@
 using System.Drawing;
 using System.Windows.Forms;
+using Recora.Core.Animation;
 
 namespace Recora.App.UI.Controls
 {
-    /// <summary>The blue strip at the bottom (VS Code style): state dot and text on the left, output folder on the right.</summary>
-    internal sealed class AppStatusBar : Control
+    /// <summary>The quiet line at the bottom: state dot and text on the left, output folder on the right.</summary>
+    internal sealed class AppStatusBar : Control, IThemeColors
     {
         private string _state = "Sẵn sàng";
+        private readonly Tween _dotMix = new Tween(1);
         private Color _dot = Theme.Ok;
+        private Color _previousDot = Theme.Ok;
         private string _details = string.Empty;
         private string _right = string.Empty;
 
         public AppStatusBar()
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-            BackColor = Theme.Accent;
+            BackColor = Theme.Background;
             AccessibleRole = AccessibleRole.StatusBar;
+        }
+
+        public void Remap(System.Func<Color, Color> map)
+        {
+            _dot = map(_dot);
+            _previousDot = map(_previousDot);
         }
 
         public void SetState(string state, Color dot)
         {
             _state = state;
-            _dot = dot;
             AccessibleName = state;
+            if (dot != _dot)
+            {
+                // The state colour crossfades: green "ready" warming into red "recording".
+                _previousDot = Theme.Blend(_previousDot, _dot, _dotMix.Value);
+                _dot = dot;
+                _dotMix.Jump(0);
+                Animator.Animate(this, _dotMix, 1, 320);
+            }
+
             Invalidate();
         }
 
@@ -53,24 +70,30 @@ namespace Recora.App.UI.Controls
             var dpi = DeviceDpi / 96f * Theme.UiScale;
             var dot = 8 * dpi;
 
-            using (var halo = new SolidBrush(Color.FromArgb(70, Color.White)))
-            using (var brush = new SolidBrush(_dot))
+            using (var line = new Pen(Theme.Border))
             {
-                g.FillEllipse(halo, 12 * dpi - 2 * dpi, (Height - dot) / 2 - 2 * dpi, dot + 4 * dpi, dot + 4 * dpi);
+                g.DrawLine(line, 0, 0, Width, 0);
+            }
+
+            var dotColor = Theme.Blend(_previousDot, _dot, _dotMix.Value);
+            using (var halo = new SolidBrush(Color.FromArgb(60, dotColor)))
+            using (var brush = new SolidBrush(dotColor))
+            {
+                g.FillEllipse(halo, 12 * dpi - 3 * dpi, (Height - dot) / 2 - 3 * dpi, dot + 6 * dpi, dot + 6 * dpi);
                 g.FillEllipse(brush, 12 * dpi, (Height - dot) / 2, dot, dot);
             }
 
             var flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             var stateWidth = TextRenderer.MeasureText(g, _state, Theme.BodyBold, Size.Empty, flags).Width;
             var x = (int)(28 * dpi);
-            TextRenderer.DrawText(g, _state, Theme.BodyBold, new Rectangle(x, 0, stateWidth + 4, Height), Theme.StatusText, flags);
+            TextRenderer.DrawText(g, _state, Theme.BodyBold, new Rectangle(x, 0, stateWidth + 4, Height), Theme.Text, flags);
 
-            var rightWidth = string.IsNullOrEmpty(_right) ? 0 : TextRenderer.MeasureText(g, _right, Theme.MonoSmall, Size.Empty, flags).Width;
+            var rightWidth = string.IsNullOrEmpty(_right) ? 0 : TextRenderer.MeasureText(g, _right, Theme.Small, Size.Empty, flags).Width;
             var rightBox = new Rectangle(Width - rightWidth - (int)(14 * dpi), 0, rightWidth + 2, Height);
             var detailsBox = new Rectangle(x + stateWidth + (int)(14 * dpi), 0, rightBox.X - x - stateWidth - (int)(28 * dpi), Height);
 
-            TextRenderer.DrawText(g, _details, Theme.MonoSmall, detailsBox, Color.FromArgb(225, Color.White), flags | TextFormatFlags.EndEllipsis);
-            TextRenderer.DrawText(g, _right, Theme.MonoSmall, rightBox, Color.FromArgb(225, Color.White), flags);
+            TextRenderer.DrawText(g, _details, Theme.Small, detailsBox, Theme.Muted, flags | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(g, _right, Theme.Small, rightBox, Theme.Muted, flags);
         }
     }
 

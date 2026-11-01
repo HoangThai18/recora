@@ -60,6 +60,18 @@ namespace Recora.Core.Tests.Settings
         }
 
         [Fact]
+        public void Load_LookAndOverlay_DefaultToWindowsThemeAndAnOverlayTopRight()
+        {
+            File.WriteAllText(SettingsPath, "{\"theme\":\"Neon\",\"overlayCorner\":\"Middle\"}");
+
+            var settings = SettingsStore.Load(SettingsPath);
+
+            Assert.Equal(ThemeMode.System, settings.Theme);
+            Assert.True(settings.RecordingOverlay);
+            Assert.Equal(OverlayCorner.TopRight, settings.OverlayCorner);
+        }
+
+        [Fact]
         public void Load_NewFieldsFromAnOlderFile_GetDefaults_AndBadValuesAreFixed()
         {
             File.WriteAllText(SettingsPath, "{\"audioFormat\":\"Flac\",\"autoStopMinutes\":-5}");
@@ -158,6 +170,9 @@ namespace Recora.Core.Tests.Settings
                 ReplayEnabled = true,
                 ReplaySeconds = 120,
                 HotkeyReplay = "Ctrl+F9",
+                Theme = ThemeMode.Dark,
+                RecordingOverlay = false,
+                OverlayCorner = OverlayCorner.BottomLeft,
                 MicProcessing = new MicProcessingSettings { GainDb = 6, HighPass = true, NoiseGate = true, GateThresholdDb = -50, Compressor = true, Limiter = false },
                 EncoderProbe = new EncoderProbeCache { Fingerprint = "10de:2684|8.1.3", Working = new[] { "h264_nvenc" } },
             };
@@ -188,6 +203,9 @@ namespace Recora.Core.Tests.Settings
             Assert.True(loaded.ReplayEnabled);
             Assert.Equal(120, loaded.ReplaySeconds);
             Assert.Equal("Ctrl+F9", loaded.HotkeyReplay);
+            Assert.Equal(ThemeMode.Dark, loaded.Theme);
+            Assert.False(loaded.RecordingOverlay);
+            Assert.Equal(OverlayCorner.BottomLeft, loaded.OverlayCorner);
             Assert.Equal(6f, loaded.MicProcessing.GainDb);
             Assert.True(loaded.MicProcessing.HighPass && loaded.MicProcessing.NoiseGate && loaded.MicProcessing.Compressor);
             Assert.Equal(-50f, loaded.MicProcessing.GateThresholdDb);

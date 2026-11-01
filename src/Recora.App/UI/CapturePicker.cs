@@ -258,7 +258,7 @@ namespace Recora.App.UI
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var size = TextRenderer.MeasureText(text, Theme.BodyBold);
             var box = new RectangleF(at.X, at.Y, size.Width + 28, size.Height + 12);
-            Theme.FillRounded(g, Theme.Accent, box, 8);
+            Theme.FillRounded(g, Theme.AccentStrong, box, 8);
             TextRenderer.DrawText(g, text, Theme.BodyBold, Rectangle.Round(box), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         }
 

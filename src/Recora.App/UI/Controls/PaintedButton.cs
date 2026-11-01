@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using Recora.Core.Animation;
 
 namespace Recora.App.UI.Controls
 {
@@ -10,6 +11,7 @@ namespace Recora.App.UI.Controls
     /// </summary>
     internal abstract class PaintedButton : Control
     {
+        private readonly Tween _hoverGlow = new Tween(0);
         private bool _hover;
         private bool _pressed;
 
@@ -27,6 +29,9 @@ namespace Recora.App.UI.Controls
         }
 
         protected bool Hover => _hover;
+
+        /// <summary>0 → 1 as the pointer arrives (fast), back to 0 as it leaves (a little slower): blend hover colours with it.</summary>
+        protected float HoverAmount => (float)_hoverGlow.Value;
 
         protected bool Pressed => _pressed;
 
@@ -46,7 +51,7 @@ namespace Recora.App.UI.Controls
         protected override void OnMouseEnter(EventArgs e)
         {
             _hover = true;
-            Invalidate();
+            Animator.Animate(this, _hoverGlow, 1, 120);
             base.OnMouseEnter(e);
         }
 
@@ -54,7 +59,7 @@ namespace Recora.App.UI.Controls
         {
             _hover = false;
             _pressed = false;
-            Invalidate();
+            Animator.Animate(this, _hoverGlow, 0, 220);
             base.OnMouseLeave(e);
         }
 

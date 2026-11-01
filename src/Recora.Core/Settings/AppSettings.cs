@@ -33,6 +33,23 @@ namespace Recora.Core.Settings
         Jpg,
     }
 
+    /// <summary>The app's look: follow Windows' light/dark app setting, or force one.</summary>
+    public enum ThemeMode
+    {
+        System,
+        Light,
+        Dark,
+    }
+
+    /// <summary>Which corner of the recorded screen the recording bar sits in.</summary>
+    public enum OverlayCorner
+    {
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight,
+    }
+
     /// <summary>
     /// Everything the user can change. Enums are stored as their names, so a newer Recora adding values never breaks
     /// an older settings file, and an unknown name falls back to that field's default instead of failing the whole file.
@@ -132,6 +149,19 @@ namespace Recora.Core.Settings
         [DataMember(Name = "replaySeconds", Order = 39)] public int ReplaySeconds { get; set; } = 30;
 
         [DataMember(Name = "hotkeyReplay", Order = 40)] public string HotkeyReplay { get; set; } = "Alt+F10";
+
+        public ThemeMode Theme { get; set; } = ThemeMode.System;
+
+        /// <summary>A small bar with the clock, size, pause and stop on the recorded screen; never in the video.</summary>
+        [DataMember(Name = "recordingOverlay", Order = 42)] public bool RecordingOverlay { get; set; } = true;
+
+        public OverlayCorner OverlayCorner { get; set; } = OverlayCorner.TopRight;
+
+        [DataMember(Name = "theme", Order = 41)]
+        private string ThemeText { get => Theme.ToString(); set => Theme = Parse(value, ThemeMode.System); }
+
+        [DataMember(Name = "overlayCorner", Order = 43)]
+        private string OverlayCornerText { get => OverlayCorner.ToString(); set => OverlayCorner = Parse(value, OverlayCorner.TopRight); }
 
         [DataMember(Name = "audioFormat", Order = 30)]
         private string AudioFormatText { get => AudioFormat.ToString(); set => AudioFormat = Parse(value, AudioFormat.M4a); }

@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
+using Recora.Core.Animation;
 
 namespace Recora.App.UI.Controls
 {
@@ -31,6 +32,8 @@ namespace Recora.App.UI.Controls
     internal sealed class PreviewBox : Widget
     {
         private Image? _image;
+        private static readonly TimeSpan Blink = TimeSpan.FromMilliseconds(1200);
+        private readonly object _pulse = new object();
         private bool _recording;
         private bool _paused;
         private string _clock = "00:00:00";
@@ -91,14 +94,14 @@ namespace Recora.App.UI.Controls
             var g = e.Graphics;
             Theme.Smooth(g);
             var box = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
-            var radius = 10 * Dpi;
+            var radius = 12 * Dpi;
 
             using (var clip = Theme.RoundedRect(box, radius))
             {
                 g.SetClip(clip);
                 if (_recording)
                 {
-                    using (var brush = new LinearGradientBrush(box, Theme.FromHex(0x13263D), Theme.FromHex(0x1B3A5E), 60f))
+                    using (var brush = new LinearGradientBrush(box, Theme.StageTop, Theme.StageBottom, 60f))
                     {
                         g.FillRectangle(brush, box);
                     }
@@ -130,7 +133,7 @@ namespace Recora.App.UI.Controls
                 g.ResetClip();
             }
 
-            Theme.StrokeRounded(g, _recording ? Theme.FromHex(0x2B4E77) : Theme.Border, 1f * Dpi, box, radius);
+            Theme.StrokeRounded(g, _recording ? Theme.StageEdge : Theme.Border, 1f * Dpi, box, radius);
         }
 
         private void PaintClock(Graphics g, RectangleF box)
@@ -143,12 +146,21 @@ namespace Recora.App.UI.Controls
             var top = box.Y + box.Height * 0.22f;
             var x = box.X + (box.Width - rowWidth) / 2;
 
-            if (!_paused || _blink)
+            // The dot breathes while recording and blinks softly while paused (a hard on/off without animations).
+            if (_recording && !Animator.IsLooping(_pulse))
             {
-                using (var halo = new SolidBrush(Color.FromArgb(70, color)))
-                using (var fill = new SolidBrush(color))
+                Animator.Loop(this, _pulse, () => _recording);
+            }
+
+            var beat = Animator.Enabled ? (float)Easing.Pulse(Animator.Now, Blink) : (_blink ? 1f : 0f);
+            var opacity = _paused ? beat : 1f;
+            var spread = (3 + 4 * (_paused ? 0 : beat)) * Dpi;
+            if (opacity > 0.02f)
+            {
+                using (var halo = new SolidBrush(Color.FromArgb((int)((70 - 40 * (_paused ? 0 : beat)) * opacity), color)))
+                using (var fill = new SolidBrush(Theme.Fade(color, opacity)))
                 {
-                    g.FillEllipse(halo, x - 3 * Dpi, top + (labelSize.Height - dot) / 2 - 3 * Dpi, dot + 6 * Dpi, dot + 6 * Dpi);
+                    g.FillEllipse(halo, x - spread, top + (labelSize.Height - dot) / 2 - spread, dot + spread * 2, dot + spread * 2);
                     g.FillEllipse(fill, x, top + (labelSize.Height - dot) / 2, dot, dot);
                 }
             }
@@ -159,7 +171,7 @@ namespace Recora.App.UI.Controls
             var clockTop = top + labelSize.Height + 6 * Dpi;
             var clockHeight = TextRenderer.MeasureText(_clock, Theme.Clock).Height;
             TextRenderer.DrawText(g, _clock, Theme.Clock, new Rectangle((int)box.X, (int)clockTop, (int)box.Width, clockHeight), Color.White, flags);
-            TextRenderer.DrawText(g, _details, Theme.MonoSmall, new Rectangle((int)box.X, (int)(clockTop + clockHeight + 4 * Dpi), (int)box.Width, (int)(20 * Dpi)), Color.FromArgb(190, Color.White), flags | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(g, _details, Theme.Small, new Rectangle((int)box.X, (int)(clockTop + clockHeight + 4 * Dpi), (int)box.Width, (int)(20 * Dpi)), Color.FromArgb(190, Color.White), flags | TextFormatFlags.EndEllipsis);
         }
     }
 
@@ -249,8 +261,8 @@ namespace Recora.App.UI.Controls
 
                 var selected = string.Equals(tile.DeviceName, _selected, StringComparison.OrdinalIgnoreCase);
                 var hover = tile.DeviceName == _hover;
-                Theme.FillRounded(g, selected ? Theme.Accent : hover ? Theme.AccentHover : Theme.Background, box, 6 * Dpi);
-                Theme.StrokeRounded(g, selected ? Theme.Accent : Theme.Border, 1.2f * Dpi, box, 6 * Dpi);
+                Theme.FillRounded(g, selected ? Theme.AccentStrong : hover ? Theme.AccentHover : Theme.Background, box, 8 * Dpi);
+                Theme.StrokeRounded(g, selected ? Theme.AccentStrong : Theme.Border, 1.2f * Dpi, box, 8 * Dpi);
 
                 var text = selected ? Color.White : Theme.Text;
                 var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
@@ -274,6 +286,7 @@ namespace Recora.App.UI.Controls
     /// <summary>A horizontal sound level bar: green, then amber, red near clipping; falls back smoothly.</summary>
     internal sealed class LevelMeter : Widget
     {
+        private readonly Tween _shown = new Tween(0);
         private float _level;
         private float _peak;
 
@@ -290,7 +303,9 @@ namespace Recora.App.UI.Controls
             var shown = peak <= 0.0001f ? 0f : (float)Math.Max(0, 1 + Math.Log10(peak) / 2.4);
             _level = shown > _level ? shown : Math.Max(shown, _level - 0.06f);
             _peak = _level > _peak ? _level : Math.Max(_level, _peak - 0.01f);
-            Invalidate();
+
+            // Readings arrive ten times a second; the bar glides between them instead of stepping.
+            Animator.Animate(this, _shown, _level, 90);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -299,12 +314,13 @@ namespace Recora.App.UI.Controls
             Theme.Smooth(g);
             var bar = new RectangleF(0, (Height - 6 * Dpi) / 2, Width - 1, 6 * Dpi);
             Theme.FillRounded(g, Theme.Background, bar, 3 * Dpi);
-            if (!Active || _level <= 0)
+            var level = (float)_shown.Value;
+            if (!Active || level <= 0.001f)
             {
                 return;
             }
 
-            var filled = new RectangleF(bar.X, bar.Y, bar.Width * Math.Min(1f, _level), bar.Height);
+            var filled = new RectangleF(bar.X, bar.Y, bar.Width * Math.Min(1f, level), bar.Height);
             using (var path = Theme.RoundedRect(filled, 3 * Dpi))
             using (var brush = new LinearGradientBrush(bar, Theme.Ok, Theme.Record, 0f))
             {
@@ -348,7 +364,7 @@ namespace Recora.App.UI.Controls
             var g = e.Graphics;
             Theme.Smooth(g);
             var box = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
-            Theme.FillRounded(g, _strong ? Theme.Accent : Theme.AccentSoft, box, box.Height / 2);
+            Theme.FillRounded(g, _strong ? Theme.AccentStrong : Theme.AccentSoft, box, box.Height / 2);
             TextRenderer.DrawText(g, Text, Theme.Small, Rectangle.Round(box), _strong ? Color.White : Theme.Accent,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
         }

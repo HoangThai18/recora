@@ -25,6 +25,7 @@ namespace Recora.App.UI
         Library,
         Info,
         Folder,
+        Film,
     }
 
     /// <summary>
@@ -145,6 +146,13 @@ namespace Recora.App.UI
                     case IconKind.Video:
                         Rounded(2, 6, 14, 12, 2);
                         Poly(16, 10, 22, 7, 22, 17, 16, 14);
+                        break;
+                    case IconKind.Film:
+                        // A clapperboard: the slate below, the hinged stick with two stripes above.
+                        Rounded(3, 10, 18, 11, 2);
+                        Poly(3, 10, 2.4f, 6.4f, 18.8f, 2.2f, 19.7f, 5.8f, 3, 10);
+                        Line(7.6f, 5.1f, 9.6f, 8.5f);
+                        Line(12.8f, 3.8f, 14.8f, 7.2f);
                         break;
                     case IconKind.Speaker:
                         Poly(3, 9.5f, 7, 9.5f, 12, 5, 12, 19, 7, 14.5f, 3, 14.5f, 3, 9.5f);

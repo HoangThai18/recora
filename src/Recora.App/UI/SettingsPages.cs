@@ -198,6 +198,7 @@ namespace Recora.App.UI
         {
             var bar = new TrackBar
             {
+                TickStyle = TickStyle.None,
                 Minimum = minimum,
                 Maximum = maximum,
                 TickFrequency = 5,
@@ -222,7 +223,9 @@ namespace Recora.App.UI
             var combo = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                FlatStyle = FlatStyle.System,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Theme.Surface,
+                ForeColor = Theme.Text,
                 Font = Theme.Body,
                 Width = 420,
                 DisplayMember = nameof(AudioDeviceOption.Name),
@@ -241,6 +244,7 @@ namespace Recora.App.UI
         {
             var bar = new TrackBar
             {
+                TickStyle = TickStyle.None,
                 Minimum = 0,
                 Maximum = 200,
                 TickFrequency = 25,
@@ -336,7 +340,7 @@ namespace Recora.App.UI
             : base("Chung", settings)
         {
             var folder = AddCard("thư mục lưu");
-            _folder = Caption(outputFolder, Theme.Mono, Theme.Text, 10);
+            _folder = Caption(outputFolder, Theme.Body, Theme.Text, 10);
             folder.Body.Controls.Add(_folder);
             var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
             ChangeFolder = new FlatButton("Đổi thư mục…") { Size = new Size(150, 34), Margin = new Padding(0, 0, 10, 0) };
@@ -345,12 +349,21 @@ namespace Recora.App.UI
             buttons.Controls.Add(OpenFolder);
             folder.Body.Controls.Add(buttons);
 
+            var look = AddCard("giao diện");
+            Row(look, "Màu", Choice(settings.Theme, v => settings.Theme = v,
+                (ThemeMode.System, "Theo Windows"), (ThemeMode.Light, "Sáng"), (ThemeMode.Dark, "Tối")),
+                "Theo Windows: tự đổi sáng, tối cùng cài đặt màu của Windows.");
+
             var behavior = AddCard("khi chạy");
             behavior.Body.Controls.Add(Toggle("Thu nhỏ xuống khay khi đóng cửa sổ", settings.MinimizeToTrayOnClose, v => settings.MinimizeToTrayOnClose = v));
             behavior.Body.Controls.Add(Toggle("Mở Recora cùng Windows", settings.StartWithWindows, v => settings.StartWithWindows = v));
             behavior.Body.Controls.Add(Toggle("Ẩn cửa sổ Recora khỏi video", settings.HideRecoraFromVideo, v => settings.HideRecoraFromVideo = v));
 
             var recording = AddCard("khi ghi");
+            recording.Body.Controls.Add(Toggle("Hiện thanh đang ghi trên màn hình", settings.RecordingOverlay, v => settings.RecordingOverlay = v));
+            Row(recording, "Vị trí thanh đang ghi", Choice(settings.OverlayCorner, v => settings.OverlayCorner = v,
+                (OverlayCorner.TopLeft, "Trên trái"), (OverlayCorner.TopRight, "Trên phải"), (OverlayCorner.BottomLeft, "Dưới trái"), (OverlayCorner.BottomRight, "Dưới phải")),
+                "Thanh có đồng hồ, dung lượng, nút tạm dừng và dừng; kéo để đổi chỗ. Không bao giờ có trong video. Game toàn màn hình độc quyền (exclusive fullscreen) che mất thanh, chuyển game sang Borderless để thấy.");
             recording.Body.Controls.Add(Toggle("Đếm ngược 3 giây trước khi ghi", settings.Countdown, v => settings.Countdown = v));
             recording.Body.Controls.Add(Toggle("Hiện vòng tròn chỗ bấm chuột", settings.ClickHighlight, v => settings.ClickHighlight = v));
             recording.Body.Controls.Add(Toggle("Webcam nổi ở góc màn hình khi ghi", settings.WebcamOverlay, v => settings.WebcamOverlay = v));

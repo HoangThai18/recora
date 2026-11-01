@@ -17,6 +17,7 @@ namespace Recora.App.UI
         General,
         Library,
         About,
+        Edit,
     }
 
     /// <summary>A page in the content area: a title row, then cards stacked top to bottom with scrolling.</summary>
@@ -137,7 +138,7 @@ namespace Recora.App.UI
             Preview = new PreviewBox();
             _mode = Caption(string.Empty, Theme.Title, Theme.Accent, 2);
             _source = Caption(string.Empty, Theme.Body, Theme.Muted, 2);
-            _encoder = Caption(string.Empty, Theme.Mono, Theme.Text, 12);
+            _encoder = Caption(string.Empty, Theme.Small, Theme.Muted, 12);
             Monitors = new MonitorMap { Size = new Size(240, 64), Margin = new Padding(0, 0, 0, 12) };
             Monitors.Picked += (_, device) =>
             {
@@ -151,7 +152,9 @@ namespace Recora.App.UI
             Devices = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                FlatStyle = FlatStyle.System,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Theme.Surface,
+                ForeColor = Theme.Text,
                 Font = Theme.Body,
                 Width = 300,
                 Margin = new Padding(0, 0, 0, 12),
@@ -188,7 +191,7 @@ namespace Recora.App.UI
                 Margin = new Padding(12, 0, 0, 0),
             };
             _replayHint = Caption(string.Empty, Theme.Small, Theme.Muted, 4);
-            _replayState = Caption(string.Empty, Theme.Mono, Theme.Text, 10);
+            _replayState = Caption(string.Empty, Theme.Small, Theme.Accent, 10);
             SaveReplay = new FlatButton("Lưu khoảnh khắc") { Primary = true, Size = new Size(170, 34), Margin = Padding.Empty, Enabled = false };
             replay.Body.Controls.Add(Row(Replay, ReplayLength, 8));
             replay.Body.Controls.Add(_replayHint);
@@ -306,7 +309,7 @@ namespace Recora.App.UI
         {
             _mode.Text = model.Mode;
             _source.Text = model.SourceDetail;
-            _encoder.Text = "> " + model.Encoder;
+            _encoder.Text = model.Encoder;
             SystemAudio.Checked = model.SystemAudio;
             Microphone.Checked = model.Microphone;
             SystemLevel.Active = model.SystemAudio;

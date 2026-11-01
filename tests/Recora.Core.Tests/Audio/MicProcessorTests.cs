@@ -162,6 +162,30 @@ namespace Recora.Core.Tests.Audio
         }
 
         [Fact]
+        public void BrokenSamples_BecomeSilence_AndDoNotPoisonWhatFollows()
+        {
+            var settings = new MicProcessingSettings { HighPass = true, Compressor = true, Limiter = true, GainDb = 6 };
+            var input = Tone(440, -12, 1.0);
+            input[1000] = float.NaN;
+            input[1001] = float.PositiveInfinity;
+            input[2000] = float.NegativeInfinity;
+
+            var output = Run(settings, input);
+
+            Assert.All(output, sample => Assert.False(float.IsNaN(sample) || float.IsInfinity(sample)));
+            Assert.True(TailPeakDb(output, 0.3) > -20f, "the tone keeps going after the glitch");
+        }
+
+        [Fact]
+        public void Clamp_TurnsNaNIntoSilence()
+        {
+            var mix = new[] { float.NaN, 2f, -3f, 0.5f };
+            AudioMixing.Clamp(mix, mix.Length);
+
+            Assert.Equal(new[] { 0f, 1f, -1f, 0.5f }, mix);
+        }
+
+        [Fact]
         public void Settings_AreClampedAndDefaultsAreSafe()
         {
             var settings = new MicProcessingSettings { GainDb = 99, GateThresholdDb = float.NaN }.Normalize();

@@ -33,6 +33,8 @@ namespace Recora.Core.Ffmpeg
 
         public static bool CanTrim(string path) => Muxer(path) != null;
 
+        private static bool IsSoundOnly(string muxer) => muxer == "ipod" || muxer == "mp3" || muxer == "wav";
+
         /// <summary>"Recora 2026-11-01 20-15-03 (cắt).mp4" next to the source, numbered if taken.</summary>
         public static string OutputPath(string source, Func<string, bool> exists)
         {
@@ -51,7 +53,9 @@ namespace Recora.Core.Ffmpeg
             var muxer = Muxer(output) ?? throw new ArgumentException("unsupported output type: " + output, nameof(output));
 
             // Both bounds go before -i: input seeking is instant, and -to on the input counts from the same clock as -ss.
-            var seek = start + TimeSpan.FromSeconds(Math.Min(LateKeyframeSeconds, Math.Max(0, (end - start).TotalSeconds / 2)));
+            // Sound-only files have no keyframes to catch: every packet is a starting point, so seek exactly.
+            var late = IsSoundOnly(muxer) ? 0 : Math.Min(LateKeyframeSeconds, Math.Max(0, (end - start).TotalSeconds / 2));
+            var seek = start + TimeSpan.FromSeconds(late);
             var args = new FfmpegArgs()
                 .Add("-hide_banner", "-y", "-nostats", "-loglevel", "error")
                 .AddIf(start > TimeSpan.Zero, "-ss", Seconds(seek))

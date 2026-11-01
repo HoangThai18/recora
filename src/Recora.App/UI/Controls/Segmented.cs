@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using Recora.Core.Animation;
 
 namespace Recora.App.UI.Controls
 {
@@ -13,8 +14,11 @@ namespace Recora.App.UI.Controls
     internal sealed class Segmented<T> : Control
     {
         private readonly IReadOnlyList<(T Value, string Label)> _options;
+        private readonly Tween _slideX = new Tween(0);
+        private readonly Tween _slideWidth = new Tween(0);
         private int _selected;
         private int _hover = -1;
+        private bool _placed;
 
         public Segmented(IEnumerable<(T Value, string Label)> options, T selected)
         {
@@ -40,7 +44,7 @@ namespace Recora.App.UI.Controls
                 if (index >= 0 && index != _selected)
                 {
                     _selected = index;
-                    Invalidate();
+                    SlideToSelection();
                 }
             }
         }
@@ -122,18 +126,29 @@ namespace Recora.App.UI.Controls
             Theme.StrokeRounded(g, Focused ? Theme.Accent : Theme.Border, 1f * dpi, outer, 8 * dpi);
 
             var cells = Cells();
+            if (!_placed && cells.Count > 0)
+            {
+                _slideX.Jump(cells[_selected].X);
+                _slideWidth.Jump(cells[_selected].Width);
+                _placed = true;
+            }
+
+            for (var i = 0; i < _options.Count; i++)
+            {
+                if (i == _hover && i != _selected)
+                {
+                    Theme.FillRounded(g, Theme.AccentHover, RectangleF.Inflate(cells[i], -3 * dpi, -3 * dpi), 6 * dpi);
+                }
+            }
+
+            // One white pill that slides to the chosen cell instead of jumping there.
+            var pill = RectangleF.Inflate(new RectangleF((float)_slideX.Value, 0, (float)_slideWidth.Value, Height), -3 * dpi, -3 * dpi);
+            Theme.FillRounded(g, Theme.Surface, pill, 6 * dpi);
+            Theme.StrokeRounded(g, Theme.Accent, 1.2f * dpi, pill, 6 * dpi);
+
             for (var i = 0; i < _options.Count; i++)
             {
                 var cell = RectangleF.Inflate(cells[i], -3 * dpi, -3 * dpi);
-                if (i == _selected)
-                {
-                    Theme.FillRounded(g, Theme.Surface, cell, 6 * dpi);
-                    Theme.StrokeRounded(g, Theme.Accent, 1.2f * dpi, cell, 6 * dpi);
-                }
-                else if (i == _hover)
-                {
-                    Theme.FillRounded(g, Theme.AccentHover, cell, 6 * dpi);
-                }
 
                 TextRenderer.DrawText(g, _options[i].Label, i == _selected ? Theme.BodyBold : Theme.Body, Rectangle.Round(cell),
                     i == _selected ? Theme.Accent : Theme.Text,
@@ -150,8 +165,27 @@ namespace Recora.App.UI.Controls
 
             _selected = index;
             AccessibleDescription = _options[index].Label;
-            Invalidate();
+            SlideToSelection();
             SelectedChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            _placed = false;
+            base.OnResize(e);
+        }
+
+        private void SlideToSelection()
+        {
+            var cells = Cells();
+            if (!_placed || cells.Count == 0)
+            {
+                Invalidate();
+                return;
+            }
+
+            Animator.Animate(this, _slideX, cells[_selected].X, 220);
+            Animator.Animate(this, _slideWidth, cells[_selected].Width, 220);
         }
 
         private int HitTest(int x)

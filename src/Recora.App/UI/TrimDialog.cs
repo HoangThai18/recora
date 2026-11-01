@@ -71,7 +71,7 @@ namespace Recora.App.UI
             {
                 Size = new Size(width, S(FramePreviewCommand.Height)),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Theme.FromHex(0x12304F),
+                BackColor = Theme.StageTop,
                 Margin = new Padding(0, 0, 0, S(14)),
             };
 
@@ -80,7 +80,7 @@ namespace Recora.App.UI
             _end = Slider(ticks, ticks, width);
             _startText = Label(Theme.BodyBold, Theme.Text, S(2));
             _endText = Label(Theme.BodyBold, Theme.Text, S(2));
-            _range = Label(Theme.Mono, Theme.Accent, S(8));
+            _range = Label(Theme.BodyBold, Theme.Accent, S(8));
             var note = Label(Theme.Small, Theme.Muted, S(16));
             note.MaximumSize = new Size(width, 0);
             note.Text = "Cắt nhanh, giữ nguyên chất lượng. Điểm đầu có thể lùi tối đa 2 giây về khung hình khoá gần nhất. "
@@ -141,6 +141,12 @@ namespace Recora.App.UI
             _end.Value = Math.Min(_end.Maximum, (int)(to.TotalSeconds * TicksPerSecond));
             _preview.Image = image;
             UpdateTexts();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Theme.StyleWindow(this);
         }
 
         protected override void OnShown(EventArgs e)
@@ -211,7 +217,7 @@ namespace Recora.App.UI
         {
             _startText.Text = "Điểm đầu · " + Clock(Start);
             _endText.Text = "Điểm cuối · " + Clock(End);
-            _range.Text = $"> giữ {Clock(End - Start)} trên tổng {Clock(_duration)}";
+            _range.Text = $"Giữ {Clock(End - Start)} trên tổng {Clock(_duration)}";
         }
 
         /// <summary>Asks FFmpeg for a still off the UI thread; a newer request makes an older answer irrelevant.</summary>
@@ -252,7 +258,7 @@ namespace Recora.App.UI
             using (var g = Graphics.FromImage(bitmap))
             using (var brush = new SolidBrush(Color.FromArgb(200, 255, 255, 255)))
             {
-                g.Clear(Theme.FromHex(0x12304F));
+                g.Clear(Theme.StageTop);
                 var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString("Không xem trước được video này\n(vẫn cắt được)", Theme.Body, brush, new RectangleF(0, 0, bitmap.Width, bitmap.Height), format);
             }

@@ -85,6 +85,13 @@ namespace Recora.Core.Tests.Ffmpeg
         }
 
         [Theory]
+        [InlineData("a.m4a")]
+        [InlineData("a.mp3")]
+        [InlineData("a.wav")]
+        public void Build_SoundOnly_SeeksExactlySoNoWordIsLost(string file) =>
+            Assert.Equal("10.000", TrimCommand.Build(file, file, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(20)).ValueOf("-ss"));
+
+        [Theory]
         [InlineData("a.mkv", "matroska")]
         [InlineData("a.M4A", "ipod")]
         [InlineData("a.mp3", "mp3")]

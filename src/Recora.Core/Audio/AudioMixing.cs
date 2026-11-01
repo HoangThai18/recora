@@ -19,7 +19,7 @@ namespace Recora.Core.Audio
             for (var i = 0; i < samples; i++)
             {
                 var v = mix[i];
-                mix[i] = v > 1f ? 1f : v < -1f ? -1f : v;
+                mix[i] = float.IsNaN(v) ? 0f : v > 1f ? 1f : v < -1f ? -1f : v;
             }
         }
 

@@ -22,6 +22,7 @@ namespace Recora.App.UI
         private readonly Card _card;
         private readonly FlatButton _open;
         private readonly FlatButton _trim;
+        private readonly FlatButton _edit;
         private readonly FlatButton _reveal;
         private readonly FlatButton _delete;
 
@@ -38,12 +39,18 @@ namespace Recora.App.UI
                 FullRowSelect = true,
                 HideSelection = false,
                 MultiSelect = false,
-                BorderStyle = BorderStyle.FixedSingle,
+                BorderStyle = BorderStyle.None,
                 Font = Theme.Body,
+                BackColor = Theme.Surface,
                 ForeColor = Theme.Text,
                 Height = 330,
                 Margin = new Padding(0, 0, 0, 12),
             };
+            // Owner-drawn header: the native one keeps black text on the dark palette.
+            _list.OwnerDraw = true;
+            _list.DrawItem += (_, e) => e.DrawDefault = true;
+            _list.DrawSubItem += (_, e) => e.DrawDefault = true;
+            _list.DrawColumnHeader += (_, e) => DrawHeader(e);
             _list.Columns.Add("Tên", 300);
             _list.Columns.Add("Thời lượng", 90, HorizontalAlignment.Right);
             _list.Columns.Add("Dung lượng", 90, HorizontalAlignment.Right);
@@ -65,6 +72,14 @@ namespace Recora.App.UI
             var buttons = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
             _open = new FlatButton("Mở") { Primary = true, Size = new Size(90, 34), Margin = new Padding(0, 0, 10, 0) };
             _trim = new FlatButton("Cắt") { Size = new Size(90, 34), Margin = new Padding(0, 0, 10, 0) };
+            _edit = new FlatButton("Dựng") { Size = new Size(90, 34), Margin = new Padding(0, 0, 10, 0) };
+            _edit.Click += (_, _) =>
+            {
+                if (Selected is LibraryItem item)
+                {
+                    EditRequested?.Invoke(this, item);
+                }
+            };
             _reveal = new FlatButton("Xem trong thư mục") { Size = new Size(170, 34), Margin = new Padding(0, 0, 10, 0) };
             _delete = new FlatButton("Xoá") { Size = new Size(90, 34), Margin = new Padding(0, 0, 10, 0) };
             var refresh = new FlatButton("Làm mới") { Size = new Size(110, 34), Margin = Padding.Empty };
@@ -79,7 +94,7 @@ namespace Recora.App.UI
             _reveal.Click += (_, _) => RevealSelected();
             _delete.Click += (_, _) => DeleteSelected();
             refresh.Click += (_, _) => Reload();
-            buttons.Controls.AddRange(new Control[] { _open, _trim, _reveal, _delete, refresh });
+            buttons.Controls.AddRange(new Control[] { _open, _trim, _edit, _reveal, _delete, refresh });
 
             _card.Body.Controls.Add(_summary);
             _card.Body.Controls.Add(_list);
@@ -96,6 +111,9 @@ namespace Recora.App.UI
 
         /// <summary>"Cắt" on a video or a sound file; the controller opens the cut dialog.</summary>
         public event EventHandler<LibraryItem>? TrimRequested;
+
+        /// <summary>"Dựng": the controller puts the file on a Clipora timeline in the Dựng phim page.</summary>
+        public event EventHandler<LibraryItem>? EditRequested;
 
         /// <summary>Selects a file (a fresh cut) and scrolls to it.</summary>
         public void Select(string path)
@@ -149,6 +167,22 @@ namespace Recora.App.UI
             UpdateButtons();
         }
 
+
+        private static void DrawHeader(DrawListViewColumnHeaderEventArgs e)
+        {
+            using (var fill = new SolidBrush(Theme.Background))
+            using (var line = new Pen(Theme.Border))
+            {
+                e.Graphics.FillRectangle(fill, e.Bounds);
+                e.Graphics.DrawLine(line, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+                e.Graphics.DrawLine(line, e.Bounds.Right - 1, e.Bounds.Top + 4, e.Bounds.Right - 1, e.Bounds.Bottom - 5);
+            }
+
+            var align = e.Header.TextAlign == HorizontalAlignment.Right ? TextFormatFlags.Right : TextFormatFlags.Left;
+            var box = Rectangle.Inflate(e.Bounds, -6, 0);
+            TextRenderer.DrawText(e.Graphics, e.Header.Text, Theme.Small, box, Theme.Muted,
+                align | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+        }
         private LibraryItem? Selected => _list.SelectedItems.Count > 0 ? _list.SelectedItems[0].Tag as LibraryItem : null;
 
         private void FitList()
@@ -173,6 +207,7 @@ namespace Recora.App.UI
             var any = Selected != null;
             _open.Enabled = any;
             _trim.Enabled = Selected is LibraryItem item && !item.IsImage && TrimCommand.CanTrim(item.Path);
+            _edit.Enabled = Selected is LibraryItem media && !media.IsImage;
             _reveal.Enabled = any;
             _delete.Enabled = any;
         }
