@@ -1,0 +1,28 @@
+---
+id: P4-T05
+title: "App: hộp Cắt video trong Thư viện"
+phase: P4
+lane: DESKTOP
+status: todo
+deps: [P4-T02]
+touches: [src/Recora.App/UI/LibraryPage.cs, src/Recora.App/UI/TrimDialog.cs, src/Recora.App/Recording/**, src/Recora.App/SelfTest*.cs, src/Recora.App/UI/UiScreenshot.cs]
+size: S
+---
+
+## Goal
+Chọn video trong Thư viện, bấm Cắt, kéo điểm đầu và cuối có ảnh xem trước, lưu thành file mới "<tên> (cắt).mp4".
+
+## Sub-tasks
+- [ ] `TrimDialog`: hai thanh kéo, ô giờ, ảnh xem trước (debounce, huỷ yêu cầu cũ), ghi chú điểm đầu có thể lùi tới 2 giây
+- [ ] Lưu trên luồng nền, xong thì thêm vào Thư viện và chọn file mới
+- [ ] `--selftest-trim`
+
+## Acceptance criteria
+- [ ] `--selftest-trim` trên CI: bản cắt có hình và tiếng, dài trong khoảng đã chọn (đầu lùi ≤ 2,1 s)
+- [ ] Ảnh chụp hộp Cắt video
+
+## Security
+None.
+
+## Out of scope
+- Cắt chính xác từng khung (phải mã hoá lại), ghép nhiều video.
