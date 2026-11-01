@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows.Forms;
+using Recora.Core.Animation;
 
 namespace Recora.App.UI.Controls
 {
@@ -7,7 +8,9 @@ namespace Recora.App.UI.Controls
     internal sealed class AppStatusBar : Control
     {
         private string _state = "Sẵn sàng";
+        private readonly Tween _dotMix = new Tween(1);
         private Color _dot = Theme.Ok;
+        private Color _previousDot = Theme.Ok;
         private string _details = string.Empty;
         private string _right = string.Empty;
 
@@ -21,8 +24,16 @@ namespace Recora.App.UI.Controls
         public void SetState(string state, Color dot)
         {
             _state = state;
-            _dot = dot;
             AccessibleName = state;
+            if (dot != _dot)
+            {
+                // The state colour crossfades: green "ready" warming into red "recording".
+                _previousDot = Theme.Blend(_previousDot, _dot, _dotMix.Value);
+                _dot = dot;
+                _dotMix.Jump(0);
+                Animator.Animate(this, _dotMix, 1, 320);
+            }
+
             Invalidate();
         }
 
@@ -54,7 +65,7 @@ namespace Recora.App.UI.Controls
             var dot = 8 * dpi;
 
             using (var halo = new SolidBrush(Color.FromArgb(70, Color.White)))
-            using (var brush = new SolidBrush(_dot))
+            using (var brush = new SolidBrush(Theme.Blend(_previousDot, _dot, _dotMix.Value)))
             {
                 g.FillEllipse(halo, 12 * dpi - 2 * dpi, (Height - dot) / 2 - 2 * dpi, dot + 4 * dpi, dot + 4 * dpi);
                 g.FillEllipse(brush, 12 * dpi, (Height - dot) / 2, dot, dot);

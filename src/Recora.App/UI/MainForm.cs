@@ -27,6 +27,7 @@ namespace Recora.App.UI
         private readonly Dictionary<PageKind, NavButton> _nav = new Dictionary<PageKind, NavButton>();
         private readonly Dictionary<PageKind, Page> _pages = new Dictionary<PageKind, Page>();
         private readonly Panel _content;
+        private readonly PageFade _fade = new PageFade();
 
         public MainForm()
         {
@@ -49,6 +50,7 @@ namespace Recora.App.UI
 
             // Docking runs from the last added control to the first: top bar and status bar span the full width.
             Controls.Add(_content);
+            _content.Controls.Add(_fade);
             Controls.Add(BuildSidebar());
             Controls.Add(Status);
             Controls.Add(BuildTopBar());
@@ -110,11 +112,20 @@ namespace Recora.App.UI
 
         public void ShowPage(PageKind kind)
         {
+            var animate = kind != CurrentPage && Animator.Enabled && Visible && WindowState != FormWindowState.Minimized && IsHandleCreated;
+            var before = animate ? PageFade.Snapshot(_content) : null;
+
             CurrentPage = kind;
             foreach (var pair in _pages)
             {
                 pair.Value.Visible = pair.Key == kind;
                 _nav[pair.Key].Selected = pair.Key == kind;
+            }
+
+            if (before != null)
+            {
+                _fade.BackColor = _content.BackColor;
+                _fade.Play(_content, before);
             }
         }
 

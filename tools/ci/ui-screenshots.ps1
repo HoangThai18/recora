@@ -40,3 +40,11 @@ foreach ($shot in $shots) {
     Write-Host "saved $file ($width x $height)"
     if ($scale -eq '1.5' -and $width -lt 1400 -and -not $dialog) { throw "150% screenshot is only $width px wide: the screen is too small to show the real layout" }
 }
+
+# A short film of the window moving (switches, picker, page changes, record button), for reviewing the animations.
+$demo = Join-Path $out 'ui-demo-1_5.mp4'
+$env:RECORA_FFMPEG = Join-Path $root 'artifacts/ffmpeg/ffmpeg.exe'
+$process = Start-Process -FilePath $exe -ArgumentList @('--ui-screenshot', "`"$demo`"", '--ui-scale', '1.5', '--page', 'Home', '--demo') -NoNewWindow -Wait -PassThru
+if ($process.ExitCode -ne 0 -or -not (Test-Path $demo)) { throw "demo video failed ($($process.ExitCode))" }
+Write-Host "demo video: $demo ($([math]::Round((Get-Item $demo).Length / 1MB, 2)) MB)"
+

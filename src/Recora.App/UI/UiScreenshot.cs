@@ -20,9 +20,12 @@ namespace Recora.App.UI
     /// </summary>
     internal static class UiScreenshot
     {
-        public static int Run(string path, float scale, PageKind page, string? libraryFolder, bool recording = false, string? dialog = null)
+        public static int Run(string path, float scale, PageKind page, string? libraryFolder, bool recording = false, string? dialog = null, bool demo = false)
         {
             Theme.Configure(scale);
+
+            // Pictures show where things end up, not a frame caught mid-motion; the demo video is about the motion.
+            Animator.Off = !demo;
             var settings = new AppSettings { OutputFolder = libraryFolder ?? @"D:\Videos\Recora" };
 
             using (var form = new MainForm())
@@ -99,6 +102,11 @@ namespace Recora.App.UI
                     Application.DoEvents();
                 }
 
+                if (demo)
+                {
+                    return Demo(form, path);
+                }
+
                 if (dialog == "trim")
                 {
                     // The cut dialog over the library, with a picture of the desktop in place of a decoded still.
@@ -136,6 +144,78 @@ namespace Recora.App.UI
             }
 
             return 0;
+        }
+
+        /// <summary>
+        /// <c>--ui-demo out.mp4</c>: films the window while a script flips a switch, slides the length picker, changes
+        /// pages and starts, pauses and stops a (pretend) recording, so the motion can be seen without a Windows PC.
+        /// </summary>
+        private static int Demo(MainForm form, string path)
+        {
+            var ffmpeg = Recording.FfmpegLocator.Find();
+            var bounds = form.Bounds;
+            var area = $"-offset_x {bounds.X} -offset_y {bounds.Y} -video_size {bounds.Width & ~1}x{bounds.Height & ~1}";
+            var capture = new System.Diagnostics.ProcessStartInfo(
+                ffmpeg,
+                $"-hide_banner -loglevel error -y -f gdigrab -framerate 30 {area} -i desktop -t 11 -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p \"{path}\"")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            var steps = new List<(double At, Action Do)>
+            {
+                (0.8, () => form.Home.Replay.Checked = false),
+                (1.6, () => form.Home.Replay.Checked = true),
+                (2.4, () => form.Home.ReplayLength.Value = 60),
+                (3.0, () => form.Home.ReplayLength.Value = 300),
+                (3.6, () => form.Home.ReplayLength.Value = 15),
+                (4.4, () => form.ShowPage(PageKind.Video)),
+                (5.4, () => form.ShowPage(PageKind.Audio)),
+                (6.4, () => form.ShowPage(PageKind.Home)),
+                (7.0, () =>
+                {
+                    form.Record.State = RecordState.Recording;
+                    form.Status.SetState("Đang ghi 00:00:01", Theme.Record);
+                    form.Home.Preview.ShowRecording(true, false, "00:00:01", "12 MB · 60 fps · h264_nvenc");
+                }),
+                (8.8, () =>
+                {
+                    form.Record.State = RecordState.Paused;
+                    form.Status.SetState("Tạm dừng 00:00:02", Theme.Pause);
+                    form.Home.Preview.ShowRecording(true, true, "00:00:02", "24 MB · Shift+F12 để ghi tiếp");
+                }),
+                (10.2, () =>
+                {
+                    form.Record.State = RecordState.Idle;
+                    form.Status.SetState("Sẵn sàng", Theme.Ok);
+                    form.Home.Preview.ShowRecording(false, false, "00:00:00", string.Empty);
+                }),
+            };
+
+            using (var process = System.Diagnostics.Process.Start(capture)!)
+            {
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                var next = 0;
+                while (!process.HasExited && clock.Elapsed.TotalSeconds < 14)
+                {
+                    while (next < steps.Count && clock.Elapsed.TotalSeconds >= steps[next].At)
+                    {
+                        steps[next++].Do();
+                    }
+
+                    // Levels keep moving like a real microphone so the meters glide.
+                    var wave = (float)(0.5 + 0.4 * Math.Sin(clock.Elapsed.TotalSeconds * 5));
+                    form.Home.SystemLevel.Push(wave);
+                    form.Home.MicrophoneLevel.Push(wave * 0.4f);
+                    Application.DoEvents();
+                    System.Threading.Thread.Sleep(10);
+                }
+
+                process.WaitForExit(5000);
+                Console.WriteLine($"demo video {path}: ffmpeg exit {(process.HasExited ? process.ExitCode : -1)}, {steps.Count} steps");
+                return process.HasExited && process.ExitCode == 0 && File.Exists(path) ? 0 : 1;
+            }
         }
     }
 }

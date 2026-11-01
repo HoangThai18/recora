@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
+using Recora.Core.Animation;
 
 namespace Recora.App.UI.Controls
 {
@@ -31,6 +32,8 @@ namespace Recora.App.UI.Controls
     internal sealed class PreviewBox : Widget
     {
         private Image? _image;
+        private static readonly TimeSpan Blink = TimeSpan.FromMilliseconds(1200);
+        private readonly object _pulse = new object();
         private bool _recording;
         private bool _paused;
         private string _clock = "00:00:00";
@@ -143,12 +146,21 @@ namespace Recora.App.UI.Controls
             var top = box.Y + box.Height * 0.22f;
             var x = box.X + (box.Width - rowWidth) / 2;
 
-            if (!_paused || _blink)
+            // The dot breathes while recording and blinks softly while paused (a hard on/off without animations).
+            if (_recording && !Animator.IsLooping(_pulse))
             {
-                using (var halo = new SolidBrush(Color.FromArgb(70, color)))
-                using (var fill = new SolidBrush(color))
+                Animator.Loop(this, _pulse, () => _recording);
+            }
+
+            var beat = Animator.Enabled ? (float)Easing.Pulse(Animator.Now, Blink) : (_blink ? 1f : 0f);
+            var opacity = _paused ? beat : 1f;
+            var spread = (3 + 4 * (_paused ? 0 : beat)) * Dpi;
+            if (opacity > 0.02f)
+            {
+                using (var halo = new SolidBrush(Color.FromArgb((int)((70 - 40 * (_paused ? 0 : beat)) * opacity), color)))
+                using (var fill = new SolidBrush(Theme.Fade(color, opacity)))
                 {
-                    g.FillEllipse(halo, x - 3 * Dpi, top + (labelSize.Height - dot) / 2 - 3 * Dpi, dot + 6 * Dpi, dot + 6 * Dpi);
+                    g.FillEllipse(halo, x - spread, top + (labelSize.Height - dot) / 2 - spread, dot + spread * 2, dot + spread * 2);
                     g.FillEllipse(fill, x, top + (labelSize.Height - dot) / 2, dot, dot);
                 }
             }
@@ -274,6 +286,7 @@ namespace Recora.App.UI.Controls
     /// <summary>A horizontal sound level bar: green, then amber, red near clipping; falls back smoothly.</summary>
     internal sealed class LevelMeter : Widget
     {
+        private readonly Tween _shown = new Tween(0);
         private float _level;
         private float _peak;
 
@@ -290,7 +303,9 @@ namespace Recora.App.UI.Controls
             var shown = peak <= 0.0001f ? 0f : (float)Math.Max(0, 1 + Math.Log10(peak) / 2.4);
             _level = shown > _level ? shown : Math.Max(shown, _level - 0.06f);
             _peak = _level > _peak ? _level : Math.Max(_level, _peak - 0.01f);
-            Invalidate();
+
+            // Readings arrive ten times a second; the bar glides between them instead of stepping.
+            Animator.Animate(this, _shown, _level, 90);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -299,12 +314,13 @@ namespace Recora.App.UI.Controls
             Theme.Smooth(g);
             var bar = new RectangleF(0, (Height - 6 * Dpi) / 2, Width - 1, 6 * Dpi);
             Theme.FillRounded(g, Theme.Background, bar, 3 * Dpi);
-            if (!Active || _level <= 0)
+            var level = (float)_shown.Value;
+            if (!Active || level <= 0.001f)
             {
                 return;
             }
 
-            var filled = new RectangleF(bar.X, bar.Y, bar.Width * Math.Min(1f, _level), bar.Height);
+            var filled = new RectangleF(bar.X, bar.Y, bar.Width * Math.Min(1f, level), bar.Height);
             using (var path = Theme.RoundedRect(filled, 3 * Dpi))
             using (var brush = new LinearGradientBrush(bar, Theme.Ok, Theme.Record, 0f))
             {
