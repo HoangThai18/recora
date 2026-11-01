@@ -3,7 +3,7 @@ id: P5-T04
 title: "CI selftest trình dựng, phát hành 0.3.0, trang tải"
 phase: P5
 lane: QA
-status: doing
+status: done
 deps: [P5-T01, P5-T03]
 touches: [tools/ci/**, .github/workflows/ci.yml, src/Recora.App/SelfTest*.cs, src/Recora.App/Program.cs, Directory.Build.props, docs/**, "thaidev: config/software.php", "thaidev: public/assets/phan-mem/recora*"]
 size: M
@@ -18,8 +18,8 @@ CI chứng minh trình dựng chạy trong Recora trên Windows; 0.3.0 lên tran
 - [x] Trang tải: tính năng Dựng phim, ảnh
 
 ## Acceptance criteria
-- [ ] CI xanh có ảnh `editor-embedded.png`
-- [ ] Release `recora-0.3.0` đủ file; curl trang hiện 0.3.0
+- [x] CI xanh có ảnh `editor-embedded.png`
+- [x] Release `recora-0.3.0` đủ file; curl trang hiện 0.3.0
 
 ## Security
 Tải file chạy được từ mạng: chỉ từ Release của HoangThai18/thaipro-craft qua HTTPS, kiểm SHA-256 với SHA256SUMS.txt cùng Release trước khi giải nén; cổng điều khiển chỉ nghe 127.0.0.1, cổng ngẫu nhiên mỗi lần chạy.

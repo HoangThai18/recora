@@ -198,6 +198,7 @@ namespace Recora.App.UI
         {
             var bar = new TrackBar
             {
+                TickStyle = TickStyle.None,
                 Minimum = minimum,
                 Maximum = maximum,
                 TickFrequency = 5,
@@ -243,6 +244,7 @@ namespace Recora.App.UI
         {
             var bar = new TrackBar
             {
+                TickStyle = TickStyle.None,
                 Minimum = 0,
                 Maximum = 200,
                 TickFrequency = 25,

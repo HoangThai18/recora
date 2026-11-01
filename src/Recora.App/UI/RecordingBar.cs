@@ -72,18 +72,27 @@ namespace Recora.App.UI
             var bar = new RecordingBar(scale);
             var place = OverlayPlacement.Place(screen, bar.Width, bar.Height, corner, (int)(16 * scale));
             bar.Location = new Point(place.X, place.Y);
-            bar.CreateHandle();
-            if (!WindowExclusion.Apply(bar))
+            try
             {
-                Log.Warn("recording bar: this Windows can't hide it from capture, not shown");
-                bar.Dispose();
-                return null;
-            }
+                bar.CreateHandle();
+                if (!WindowExclusion.Apply(bar))
+                {
+                    Log.Warn("recording bar: this Windows can't hide it from capture, not shown");
+                    bar.Dispose();
+                    return null;
+                }
 
-            bar.Render();
-            bar.Show();
-            bar._blink.Start();
-            return bar;
+                bar.Render();
+                bar.Show();
+                bar._blink.Start();
+                return bar;
+            }
+            catch
+            {
+                // Never leave a half-made top-most window behind.
+                bar.Dispose();
+                throw;
+            }
         }
 
         /// <summary>Recording or paused, with the clock and "1,2 GB · 60 fps".</summary>

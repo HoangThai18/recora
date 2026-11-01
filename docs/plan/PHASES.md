@@ -7,7 +7,7 @@
 | P2 | Đủ các chế độ quay và công cụ đi kèm | done |
 | P3 | Phát hành trên thaipro.store | done |
 | P4 | Cho người chơi game: lưu khoảnh khắc, cắt video, file nhẹ, thử và chỉnh micro | done |
-| P5 | Chuyển động mượt và Dựng phim (Clipora) ngay trong cửa sổ Recora | doing |
+| P5 | Chuyển động mượt, Dựng phim (Clipora), giao diện sáng/tối, thanh đang ghi | done |
 
 ---
 

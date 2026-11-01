@@ -3,7 +3,7 @@ id: P5-T02
 title: "Tìm hoặc tải Clipora (kiểm SHA-256), cổng điều khiển"
 phase: P5
 lane: BE
-status: doing
+status: done
 deps: []
 touches: [src/Recora.Core/Editor/**, tests/Recora.Core.Tests/Editor/**, src/Recora.App/Editor/**, src/Recora.App/Recora.App.csproj]
 size: M
@@ -18,8 +18,8 @@ Recora tìm Clipora đã cài hoặc tải bản portable mới nhất từ Rele
 - [x] `CliporaSession` (cổng trống, chờ cửa sổ, nhập file, tạo timeline từ clip)
 
 ## Acceptance criteria
-- [ ] Test Core chọn bản, đọc SHA256SUMS, dựng và đọc lệnh
-- [ ] CI tải Clipora đúng SHA-256 và nhận `file.import`
+- [x] Test Core chọn bản, đọc SHA256SUMS, dựng và đọc lệnh
+- [x] CI tải Clipora đúng SHA-256 và nhận `file.import`
 
 ## Security
 Tải file chạy được từ mạng: chỉ từ Release của HoangThai18/thaipro-craft qua HTTPS, kiểm SHA-256 với SHA256SUMS.txt cùng Release trước khi giải nén; cổng điều khiển chỉ nghe 127.0.0.1, cổng ngẫu nhiên mỗi lần chạy.

@@ -3,7 +3,7 @@ id: P5-T06
 title: "Giao diện sáng kiểu Windows 11 và tối kiểu app gaming, đổi khi đang mở"
 phase: P5
 lane: App
-status: doing
+status: done
 deps: [P5-T01]
 touches: [src/Recora.App/UI/**, src/Recora.App/Native/NativeMethods.cs, src/Recora.App/Program.cs, src/Recora.App/MainController.cs, src/Recora.Core/Settings/AppSettings.cs, tools/ci/ui-screenshots.ps1]
 size: L
@@ -20,7 +20,7 @@ Người dùng chê xanh pastel trông cũ; chọn có cả sáng lẫn tối, m
 - [x] CI chụp bản tối mọi trang và cửa sổ đổi sáng sang tối khi đang mở
 
 ## Acceptance criteria
-- [ ] Ảnh `ui-dark-*` không còn mảng sáng sót; `ui-switch-home-1` giống `ui-dark-home-1`
+- [x] Ảnh `ui-dark-*` không còn mảng sáng sót; `ui-switch-home-1` giống `ui-dark-home-1`
 - [x] Test cài đặt: theme, góc thanh, giá trị lạ về mặc định
 
 ## Out of scope

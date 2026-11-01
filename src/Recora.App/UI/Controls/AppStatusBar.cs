@@ -5,7 +5,7 @@ using Recora.Core.Animation;
 namespace Recora.App.UI.Controls
 {
     /// <summary>The quiet line at the bottom: state dot and text on the left, output folder on the right.</summary>
-    internal sealed class AppStatusBar : Control
+    internal sealed class AppStatusBar : Control, IThemeColors
     {
         private string _state = "Sẵn sàng";
         private readonly Tween _dotMix = new Tween(1);
@@ -19,6 +19,12 @@ namespace Recora.App.UI.Controls
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
             BackColor = Theme.Background;
             AccessibleRole = AccessibleRole.StatusBar;
+        }
+
+        public void Remap(System.Func<Color, Color> map)
+        {
+            _dot = map(_dot);
+            _previousDot = map(_previousDot);
         }
 
         public void SetState(string state, Color dot)

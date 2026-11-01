@@ -205,7 +205,7 @@ namespace Recora.App.UI.Controls
     }
 
     /// <summary>A round secondary action (pause, screenshot) beside the record button.</summary>
-    internal sealed class IconButton : PaintedButton
+    internal sealed class IconButton : PaintedButton, IThemeColors
     {
         private IconKind _icon;
         // Null follows the palette's text colour, so switching light/dark recolours the icon too.
@@ -234,6 +234,14 @@ namespace Recora.App.UI.Controls
             {
                 _tint = value;
                 Invalidate();
+            }
+        }
+
+        public void Remap(Func<Color, Color> map)
+        {
+            if (_tint.HasValue)
+            {
+                _tint = map(_tint.Value);
             }
         }
 
@@ -281,6 +289,12 @@ namespace Recora.App.UI.Controls
             var fill = Primary
                 ? Theme.Blend(Theme.AccentStrong, Theme.AccentPressed, HoverAmount)
                 : Theme.Blend(Theme.Surface, Theme.AccentHover, HoverAmount);
+            if (!Enabled)
+            {
+                // A switched-off primary button must not look clickable.
+                fill = Primary ? Theme.Blend(fill, Theme.Surface, 0.55) : Theme.Blend(fill, Theme.Background, 0.5);
+            }
+
             Theme.FillRounded(g, fill, box, 8 * Dpi);
 
             if (!Primary)
@@ -288,7 +302,7 @@ namespace Recora.App.UI.Controls
                 Theme.StrokeRounded(g, Theme.Blend(Theme.Border, Theme.Accent, HoverAmount * 0.6), 1.2f * Dpi, box, 8 * Dpi);
             }
 
-            DrawCenteredText(g, Text, Font, Primary ? Color.White : (Enabled ? Theme.Text : Theme.Muted), box);
+            DrawCenteredText(g, Text, Font, Primary ? Color.FromArgb(Enabled ? 255 : 200, Color.White) : (Enabled ? Theme.Text : Theme.Muted), box);
         }
     }
 }

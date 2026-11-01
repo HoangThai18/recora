@@ -3,7 +3,7 @@ id: P5-T05
 title: "Thanh đang ghi trên màn hình (overlay), không lọt vào video"
 phase: P5
 lane: App
-status: doing
+status: done
 deps: [P5-T01]
 touches: [src/Recora.App/UI/RecordingBar.cs, src/Recora.App/UI/WindowExclusion.cs, src/Recora.App/MainController.cs, src/Recora.Core/Capture/OverlayPlacement.cs, src/Recora.Core/Settings/AppSettings.cs, src/Recora.App/UI/SettingsPages.cs, tools/ci/ui-screenshots.ps1]
 size: M
@@ -19,7 +19,7 @@ Lúc ghi, người chơi thấy trên màn hình đang ghi: chấm đỏ, đồn
 - [x] CI `--dialog bar`: chụp ảnh thanh và kiểm ảnh chụp màn hình không thấy thanh
 
 ## Acceptance criteria
-- [ ] CI in `hidden from capture: True` cho cả sáng và tối
+- [x] CI in `hidden from capture: True` cho cả sáng và tối
 - [x] Test vị trí 4 góc và màn nhỏ hơn thanh
 
 ## Out of scope

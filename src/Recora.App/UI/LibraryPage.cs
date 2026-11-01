@@ -46,6 +46,11 @@ namespace Recora.App.UI
                 Height = 330,
                 Margin = new Padding(0, 0, 0, 12),
             };
+            // Owner-drawn header: the native one keeps black text on the dark palette.
+            _list.OwnerDraw = true;
+            _list.DrawItem += (_, e) => e.DrawDefault = true;
+            _list.DrawSubItem += (_, e) => e.DrawDefault = true;
+            _list.DrawColumnHeader += (_, e) => DrawHeader(e);
             _list.Columns.Add("Tên", 300);
             _list.Columns.Add("Thời lượng", 90, HorizontalAlignment.Right);
             _list.Columns.Add("Dung lượng", 90, HorizontalAlignment.Right);
@@ -162,6 +167,22 @@ namespace Recora.App.UI
             UpdateButtons();
         }
 
+
+        private static void DrawHeader(DrawListViewColumnHeaderEventArgs e)
+        {
+            using (var fill = new SolidBrush(Theme.Background))
+            using (var line = new Pen(Theme.Border))
+            {
+                e.Graphics.FillRectangle(fill, e.Bounds);
+                e.Graphics.DrawLine(line, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+                e.Graphics.DrawLine(line, e.Bounds.Right - 1, e.Bounds.Top + 4, e.Bounds.Right - 1, e.Bounds.Bottom - 5);
+            }
+
+            var align = e.Header.TextAlign == HorizontalAlignment.Right ? TextFormatFlags.Right : TextFormatFlags.Left;
+            var box = Rectangle.Inflate(e.Bounds, -6, 0);
+            TextRenderer.DrawText(e.Graphics, e.Header.Text, Theme.Small, box, Theme.Muted,
+                align | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+        }
         private LibraryItem? Selected => _list.SelectedItems.Count > 0 ? _list.SelectedItems[0].Tag as LibraryItem : null;
 
         private void FitList()

@@ -1226,7 +1226,7 @@ namespace Recora.App
                     ShowStatus();
                 }
             }
-            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is ExternalException)
+            catch (Exception error) when (error is System.ComponentModel.Win32Exception || error is InvalidOperationException || error is ExternalException || error is ArgumentException)
             {
                 Log.Error("recording bar failed", error);
                 _bar?.Dispose();
@@ -1959,7 +1959,12 @@ namespace Recora.App
                 return;
             }
 
-            // Windows 10 2004+; older versions refuse the flag and Recora's window simply stays visible in videos.
+            // Windows 10 2004+ only: older builds would black the window out in videos instead of leaving it out.
+            if (!WindowExclusion.Supported)
+            {
+                return;
+            }
+
             if (!NativeMethods.SetWindowDisplayAffinity(_form.Handle, _settings.HideRecoraFromVideo ? NativeMethods.WdaExcludeFromCapture : NativeMethods.WdaNone))
             {
                 Log.Warn($"SetWindowDisplayAffinity failed: {Marshal.GetLastWin32Error()}");

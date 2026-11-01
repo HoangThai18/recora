@@ -106,6 +106,12 @@ namespace Recora.App.UI
         internal Color[] Slots => new[] { Background, Surface, Border, Text, Muted, Accent, AccentSoft, AccentHover, AccentStrong, Record, Pause, Ok };
     }
 
+    /// <summary>A control that keeps palette colours of its own (a tint, a state dot) and remaps them on a switch.</summary>
+    internal interface IThemeColors
+    {
+        void Remap(Func<Color, Color> map);
+    }
+
     /// <summary>
     /// The current look: <see cref="Palette.Light"/> or <see cref="Palette.Dark"/>, switchable while the app runs.
     /// Painted controls read these at paint time; plain controls are remapped by <see cref="Use"/>.
@@ -284,6 +290,7 @@ namespace Recora.App.UI
         {
             control.BackColor = map(control.BackColor);
             control.ForeColor = map(control.ForeColor);
+            (control as IThemeColors)?.Remap(map);
             foreach (Control child in control.Controls)
             {
                 Recolor(child, map);
