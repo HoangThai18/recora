@@ -49,6 +49,15 @@ Name: "{userdesktop}\Recora"; Filename: "{app}\Recora.exe"; Tasks: desktopicon
 [Run]
 Filename: "{app}\Recora.exe"; Description: "Mở Recora"; Flags: nowait postinstall skipifsilent
 
+; "Cập nhật ngay" runs this installer silently with /RELAUNCH=1: start the new Recora once it is in place.
+Filename: "{app}\Recora.exe"; Flags: nowait; Check: IsRelaunch
+
+[Code]
+function IsRelaunch: Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;
+
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/C taskkill /IM Recora.exe /F"; Flags: runhidden; RunOnceId: "StopRecora"
 

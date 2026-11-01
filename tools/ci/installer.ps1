@@ -29,6 +29,18 @@ $installed = Join-Path $env:LOCALAPPDATA 'Programs\Recora\Recora.exe'
 if (-not (Test-Path $installed) -or -not (Test-Path (Join-Path $env:LOCALAPPDATA 'Programs\Recora\ffmpeg.exe'))) { throw "installer did not put Recora.exe and ffmpeg.exe in place" }
 $roundtrip = Start-Process -FilePath $installed -ArgumentList '--settings-roundtrip', "`"$(Join-Path $out 'installed-check')`"" -NoNewWindow -Wait -PassThru
 if ($roundtrip.ExitCode -ne 0) { throw "installed Recora.exe failed to run ($($roundtrip.ExitCode))" }
+# "Cập nhật ngay" path: the same installer run silently over the installed app with /RELAUNCH=1 must start it again.
+Get-Process Recora -ErrorAction SilentlyContinue | Stop-Process -Force
+# Not -Wait: it waits for every child too, and the app the installer starts again never exits on its own.
+$update = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/RELAUNCH=1' -PassThru
+if (-not $update.WaitForExit(180000)) { throw "update install did not finish in 3 minutes" }
+if ($update.ExitCode -ne 0) { throw "update install exited with $($update.ExitCode)" }
+$relaunched = $null
+for ($i = 0; $i -lt 20 -and -not $relaunched; $i++) { Start-Sleep -Milliseconds 500; $relaunched = Get-Process Recora -ErrorAction SilentlyContinue }
+if (-not $relaunched) { throw "the update install did not start Recora again" }
+Write-Host "update install relaunched Recora (pid $($relaunched[0].Id))"
+$relaunched | Stop-Process -Force
+Start-Sleep -Seconds 1
 $uninstaller = Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs\Recora') -Filter 'unins*.exe' | Select-Object -First 1
 $remove = Start-Process -FilePath $uninstaller.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
 Start-Sleep -Seconds 3

@@ -24,8 +24,12 @@ namespace Recora.App.UI
                 Theme.Body, Theme.Text, 14));
             about.Body.Controls.Add(Links(("Trang tải", Homepage), ("Mã nguồn", SourceCode)));
             _update = Caption(string.Empty, Theme.Small, Theme.Muted, 0);
-            CheckUpdate = new FlatButton("Kiểm tra bản mới") { Size = new Size(170, 34), Margin = new Padding(0, 12, 0, 4) };
-            about.Body.Controls.Add(CheckUpdate);
+            CheckUpdate = new FlatButton("Kiểm tra bản mới") { Size = new Size(170, 34), Margin = new Padding(0, 0, 10, 0) };
+            UpdateNow = new FlatButton("Cập nhật ngay") { Primary = true, Size = new Size(210, 34), Margin = Padding.Empty, Visible = false };
+            var updateRow = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = new Padding(0, 12, 0, 4) };
+            updateRow.Controls.Add(CheckUpdate);
+            updateRow.Controls.Add(UpdateNow);
+            about.Body.Controls.Add(updateRow);
             about.Body.Controls.Add(_update);
 
             var support = AddCard("khi gặp lỗi");
@@ -48,6 +52,16 @@ namespace Recora.App.UI
         private readonly Label _update;
 
         public FlatButton CheckUpdate { get; }
+
+        /// <summary>Shown once a newer release is known: downloads, installs and restarts Recora.</summary>
+        public FlatButton UpdateNow { get; }
+
+        public void OfferUpdate(Version version)
+        {
+            UpdateNow.Text = "Cập nhật lên " + version.ToString(3);
+            UpdateNow.Visible = true;
+            ShowUpdate($"Có bản {version.ToString(3)}. Bấm Cập nhật: Recora tự tải, cài rồi mở lại, cài đặt giữ nguyên.");
+        }
 
         public void ShowUpdate(string text) => _update.Text = text;
 

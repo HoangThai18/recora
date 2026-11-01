@@ -25,6 +25,7 @@ using Recora.Core.Hotkeys;
 using Recora.Core.Library;
 using Recora.Core.Recording;
 using Recora.Core.Settings;
+using Recora.Core.Updates;
 
 namespace Recora.App
 {
@@ -79,6 +80,9 @@ namespace Recora.App
         private bool _preparing;
         private Countdown? _countdown;
         private RecordingBar? _bar;
+        private AboutPage? _about;
+        private AvailableUpdate? _update;
+        private bool _updating;
 
         public MainController(MainForm form, AppSettings settings, string settingsPath)
         {
@@ -239,6 +243,7 @@ namespace Recora.App
             SaveSettings();
             ResumeReplay();
 
+            Updater.CleanUp();
             CheckForUpdateLater();
             var ffmpeg = _environment.FfmpegPath;
             var result = await Task.Run(() => RecoveryService.Finish(ffmpeg, leftovers));
@@ -322,16 +327,28 @@ namespace Recora.App
             _form.SetPage(PageKind.Edit, _edit);
             ShowEditorIntro(null);
             var about = new AboutPage(Program.Version, environment.FfmpegVersion);
+            _about = about;
             about.CheckUpdate.Click += async (_, _) =>
             {
                 about.CheckUpdate.Enabled = false;
                 about.ShowUpdate("Đang hỏi…");
                 var result = await UpdateService.CheckAsync();
                 about.CheckUpdate.Enabled = true;
-                about.ShowUpdate(result.Failed
-                    ? "Không hỏi được trang phát hành, thử lại sau."
-                    : result.Update == null ? "Bạn đang dùng bản mới nhất." : $"Có bản {result.Update.Version}: bấm Trang tải để tải về.");
+                if (result.Update != null)
+                {
+                    OfferUpdate(result.Update);
+                }
+                else
+                {
+                    about.ShowUpdate(result.Failed ? "Không hỏi được trang phát hành, thử lại sau." : "Bạn đang dùng bản mới nhất.");
+                }
             };
+            about.UpdateNow.Click += async (_, _) => await UpdateNow();
+            if (_update != null)
+            {
+                OfferUpdate(_update);
+            }
+
             _form.SetPage(PageKind.About, about);
         }
 
@@ -437,12 +454,93 @@ namespace Recora.App
             var update = (await UpdateService.CheckAsync()).Update;
             if (update != null && !_disposed)
             {
+                OfferUpdate(update);
                 _tray.Notify(
-                    "Có Recora bản " + update.Version,
-                    "Bấm vào đây để mở trang tải bản mới.",
+                    "Có Recora bản " + update.Version.ToString(3),
+                    "Bấm vào đây để cập nhật ngay: Recora tự tải, cài rồi mở lại.",
                     ToolTipIcon.Info,
-                    () => Process.Start(new ProcessStartInfo(AboutPage.Homepage) { UseShellExecute = true }));
+                    () =>
+                    {
+                        ShowWindow();
+                        _form.ShowPage(PageKind.About);
+                        _ = UpdateNow();
+                    });
             }
+        }
+
+        private void OfferUpdate(AvailableUpdate update)
+        {
+            _update = update;
+            _about?.OfferUpdate(update.Version);
+        }
+
+        /// <summary>Downloads the new installer, checks its SHA-256, runs it silently and exits so it can replace Recora.</summary>
+        private async Task UpdateNow()
+        {
+            var update = _update;
+            if (update == null || _updating || _about == null)
+            {
+                return;
+            }
+
+            if (!Updater.CanUpdateInPlace || !update.CanInstall)
+            {
+                Process.Start(new ProcessStartInfo(AboutPage.Homepage) { UseShellExecute = true });
+                return;
+            }
+
+            if (Busy)
+            {
+                ShowMessage("Recora đang ghi. Dừng ghi rồi bấm Cập nhật lại.", MessageBoxIcon.Information);
+                return;
+            }
+
+            _updating = true;
+            _about.UpdateNow.Enabled = false;
+            string installer;
+            try
+            {
+                var about = _about;
+                installer = await Task.Run(() => Updater.Download(update, (done, total) =>
+                {
+                    if (total > 0)
+                    {
+                        about.BeginInvoke(new Action(() => about.ShowUpdate($"Đang tải bản {update.Version.ToString(3)}: {done * 100 / total}%")));
+                    }
+                }, System.Threading.CancellationToken.None));
+            }
+            catch (Exception error) when (error is RecoraException || error is System.Net.WebException || error is IOException || error is UnauthorizedAccessException)
+            {
+                Log.Error("update download failed", error);
+                _about.ShowUpdate("Không tải được bản mới, xem mạng rồi bấm lại.");
+                _about.UpdateNow.Enabled = true;
+                _updating = false;
+                return;
+            }
+
+            if (Busy)
+            {
+                _about.ShowUpdate("Đã tải xong. Dừng ghi rồi bấm Cập nhật để cài.");
+                _about.UpdateNow.Enabled = true;
+                _updating = false;
+                return;
+            }
+
+            _about.ShowUpdate("Đang cài bản mới, Recora sẽ tự mở lại…");
+            try
+            {
+                Updater.Install(installer);
+            }
+            catch (System.ComponentModel.Win32Exception error)
+            {
+                Log.Error("update installer failed to start", error);
+                _about.ShowUpdate("Không chạy được bộ cài bản mới.");
+                _about.UpdateNow.Enabled = true;
+                _updating = false;
+                return;
+            }
+
+            await ExitAfterStopping();
         }
 
         /// <summary>Windows switched between light and dark apps; follow it when the look is "Theo Windows".</summary>
