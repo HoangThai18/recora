@@ -208,7 +208,8 @@ namespace Recora.App.UI.Controls
     internal sealed class IconButton : PaintedButton
     {
         private IconKind _icon;
-        private Color _tint = Theme.Text;
+        // Null follows the palette's text colour, so switching light/dark recolours the icon too.
+        private Color? _tint;
 
         public IconButton(IconKind icon, string text)
         {
@@ -228,7 +229,7 @@ namespace Recora.App.UI.Controls
 
         public Color Tint
         {
-            get => _tint;
+            get => _tint ?? Theme.Text;
             set
             {
                 _tint = value;
@@ -240,7 +241,7 @@ namespace Recora.App.UI.Controls
         {
             var diameter = (Math.Min(b.Width, b.Height) - 8 * Dpi) * (Pressed ? 0.94f : 1f);
             var circle = new RectangleF(b.X + (b.Width - diameter) / 2, b.Y + (b.Height - diameter) / 2, diameter, diameter);
-            var enabledColor = Enabled ? _tint : Theme.Border;
+            var enabledColor = Enabled ? Tint : Theme.Blend(Theme.Border, Theme.Muted, 0.45);
 
             using (var brush = new SolidBrush(Enabled ? Theme.Blend(Theme.Surface, Theme.AccentHover, HoverAmount) : Theme.Surface))
             {
