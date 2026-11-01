@@ -58,46 +58,49 @@ namespace Recora.App.UI
         /// <summary>Windows 11 style: neutral grey window, white cards, Fluent blue.</summary>
         public static readonly Palette Light = new Palette("light", false)
         {
-            Background = Theme.FromHex(0xF3F4F6),
+            Background = Hex(0xF3F4F6),
             Surface = Color.White,
-            Border = Theme.FromHex(0xE2E5EA),
-            Text = Theme.FromHex(0x1A1D23),
-            Muted = Theme.FromHex(0x5F6875),
-            Accent = Theme.FromHex(0x0F6CBD),
-            AccentStrong = Theme.FromHex(0x0E64B0),
-            AccentPressed = Theme.FromHex(0x0B528F),
-            AccentSoft = Theme.FromHex(0xE3EEFA),
-            AccentHover = Theme.FromHex(0xEAECF0),
-            Record = Theme.FromHex(0xE5484D),
-            RecordHover = Theme.FromHex(0xD13A3F),
-            Pause = Theme.FromHex(0xD98E04),
-            Ok = Theme.FromHex(0x16A34A),
-            StageTop = Theme.FromHex(0x111827),
-            StageBottom = Theme.FromHex(0x1E293B),
-            StageEdge = Theme.FromHex(0x334155),
+            Border = Hex(0xE2E5EA),
+            Text = Hex(0x1A1D23),
+            Muted = Hex(0x5F6875),
+            Accent = Hex(0x0F6CBD),
+            AccentStrong = Hex(0x0E64B0),
+            AccentPressed = Hex(0x0B528F),
+            AccentSoft = Hex(0xE3EEFA),
+            AccentHover = Hex(0xEAECF0),
+            Record = Hex(0xE5484D),
+            RecordHover = Hex(0xD13A3F),
+            Pause = Hex(0xD98E04),
+            Ok = Hex(0x16A34A),
+            StageTop = Hex(0x111827),
+            StageBottom = Hex(0x1E293B),
+            StageEdge = Hex(0x334155),
         };
 
         /// <summary>Gaming style: graphite window, dark cards, indigo accent.</summary>
         public static readonly Palette Dark = new Palette("dark", true)
         {
-            Background = Theme.FromHex(0x0F1115),
-            Surface = Theme.FromHex(0x181B21),
-            Border = Theme.FromHex(0x272B33),
-            Text = Theme.FromHex(0xE8EAEE),
-            Muted = Theme.FromHex(0x8D96A4),
-            Accent = Theme.FromHex(0x8B8DFA),
-            AccentStrong = Theme.FromHex(0x5B5EE8),
-            AccentPressed = Theme.FromHex(0x4A4DD0),
-            AccentSoft = Theme.FromHex(0x24264A),
-            AccentHover = Theme.FromHex(0x22262E),
-            Record = Theme.FromHex(0xF0565B),
-            RecordHover = Theme.FromHex(0xDB4549),
-            Pause = Theme.FromHex(0xF0A020),
-            Ok = Theme.FromHex(0x22C55E),
-            StageTop = Theme.FromHex(0x07090C),
-            StageBottom = Theme.FromHex(0x12151B),
-            StageEdge = Theme.FromHex(0x2A2F38),
+            Background = Hex(0x0F1115),
+            Surface = Hex(0x181B21),
+            Border = Hex(0x272B33),
+            Text = Hex(0xE8EAEE),
+            Muted = Hex(0x8D96A4),
+            Accent = Hex(0x8B8DFA),
+            AccentStrong = Hex(0x5B5EE8),
+            AccentPressed = Hex(0x4A4DD0),
+            AccentSoft = Hex(0x24264A),
+            AccentHover = Hex(0x22262E),
+            Record = Hex(0xF0565B),
+            RecordHover = Hex(0xDB4549),
+            Pause = Hex(0xF0A020),
+            Ok = Hex(0x22C55E),
+            StageTop = Hex(0x07090C),
+            StageBottom = Hex(0x12151B),
+            StageEdge = Hex(0x2A2F38),
         };
+
+        // Not Theme.FromHex: Theme's static fields read Palette.Light, so touching Theme from here would hand it a null.
+        private static Color Hex(int rgb) => Color.FromArgb(255, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
 
         /// <summary>Slots in the order <see cref="Theme.Use"/> matches a control's colours against.</summary>
         internal Color[] Slots => new[] { Background, Surface, Border, Text, Muted, Accent, AccentSoft, AccentHover, AccentStrong, Record, Pause, Ok };
@@ -110,7 +113,9 @@ namespace Recora.App.UI
     /// </summary>
     internal static class Theme
     {
-        public static Palette Current { get; private set; } = Palette.Light;
+        private static Palette? _current;
+
+        public static Palette Current => _current ?? Palette.Light;
 
         public static Color Background => Current.Background;
 
@@ -156,7 +161,7 @@ namespace Recora.App.UI
         public static void Use(Palette palette, params Control[] roots)
         {
             var old = Current;
-            Current = palette;
+            _current = palette;
             if (ReferenceEquals(old, palette))
             {
                 return;
