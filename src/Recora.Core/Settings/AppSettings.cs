@@ -42,6 +42,9 @@ namespace Recora.Core.Settings
         public const int MinFps = 5;
         public const int MaxFps = 240;
 
+        /// <summary>The size limits offered in the Video page, in GB per hour (0: no limit).</summary>
+        public static readonly int[] SizeLimits = { 0, 1, 2, 4, 8 };
+
         public string OutputFolder { get; set; } = string.Empty;
 
         public CaptureMode Mode { get; set; } = CaptureMode.FullScreen;
@@ -112,6 +115,9 @@ namespace Recora.Core.Settings
         /// <summary>Draw a ring at each mouse click while recording.</summary>
         [DataMember(Name = "clickHighlight", Order = 35)] public bool ClickHighlight { get; set; }
 
+        /// <summary>Hourly size ceiling for video recordings in GB, one of <see cref="SizeLimits"/>; 0 means none.</summary>
+        [DataMember(Name = "maxGigabytesPerHour", Order = 36)] public int MaxGigabytesPerHour { get; set; }
+
         [DataMember(Name = "audioFormat", Order = 30)]
         private string AudioFormatText { get => AudioFormat.ToString(); set => AudioFormat = Parse(value, AudioFormat.M4a); }
 
@@ -153,6 +159,7 @@ namespace Recora.Core.Settings
             MicrophoneDevice ??= string.Empty;
             VideoDevice ??= string.Empty;
             AutoStopMinutes = Math.Max(0, Math.Min(24 * 60, AutoStopMinutes));
+            MaxGigabytesPerHour = Array.IndexOf(SizeLimits, MaxGigabytesPerHour) >= 0 ? MaxGigabytesPerHour : 0;
             return this;
         }
 

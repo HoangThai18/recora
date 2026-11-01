@@ -92,8 +92,14 @@ namespace Recora.Core.Tests.Encoding
 
     public class VideoEncoderArgsTests
     {
-        private static VideoEncodeOptions Options(EncoderKind kind, VideoCodec codec, QualityPreset quality = QualityPreset.Balanced) =>
-            new VideoEncodeOptions(new VideoEncoder(kind, codec), quality, Fps: 60, Width: 1920, Height: 1080);
+        private static VideoEncodeOptions Options(EncoderKind kind, VideoCodec codec, QualityPreset quality = QualityPreset.Balanced, int? limit = null) =>
+            new VideoEncodeOptions(new VideoEncoder(kind, codec), quality, Fps: 60, Width: 1920, Height: 1080, limit);
+
+        public static IEnumerable<object[]> AllSupportedEncoders() =>
+            from kind in Enum.GetValues(typeof(EncoderKind)).Cast<EncoderKind>()
+            from codec in Enum.GetValues(typeof(VideoCodec)).Cast<VideoCodec>()
+            where EncoderCatalog.FfmpegName(kind, codec) != null
+            select new object[] { kind, codec };
 
         public static IEnumerable<object[]> AllSupportedCombinations() =>
             from kind in Enum.GetValues(typeof(EncoderKind)).Cast<EncoderKind>()
@@ -114,6 +120,7 @@ namespace Recora.Core.Tests.Encoding
             var (option, max) = kind switch
             {
                 EncoderKind.Nvenc => ("-cq", codec == VideoCodec.Av1 ? 63 : 51),
+                EncoderKind.MediaFoundation => ("-quality", 100),
                 EncoderKind.Amf => codec == VideoCodec.Av1 ? ("-qvbr_quality_level", 51) : ("-qp_i", 51),
                 EncoderKind.Qsv => ("-global_quality", 51),
                 EncoderKind.X264 => ("-crf", 51),
@@ -187,9 +194,91 @@ namespace Recora.Core.Tests.Encoding
         [Fact]
         public void Presets_AreOrderedFromSharpestToSmallest()
         {
-            Assert.True(VideoEncoderArgs.BaseQuality(QualityPreset.High) < VideoEncoderArgs.BaseQuality(QualityPreset.Balanced));
-            Assert.True(VideoEncoderArgs.BaseQuality(QualityPreset.Balanced) < VideoEncoderArgs.BaseQuality(QualityPreset.Small));
-            Assert.True(VideoEncoderArgs.AudioBitrateKbps(QualityPreset.High) > VideoEncoderArgs.AudioBitrateKbps(QualityPreset.Small));
+            var order = new[] { QualityPreset.High, QualityPreset.Balanced, QualityPreset.Small, QualityPreset.Saver };
+            for (var i = 1; i < order.Length; i++)
+            {
+                var sharper = order[i - 1];
+                var smaller = order[i];
+                Assert.True(VideoEncoderArgs.BaseQuality(sharper) < VideoEncoderArgs.BaseQuality(smaller));
+                Assert.True(VideoEncoderArgs.AudioBitrateKbps(sharper) > VideoEncoderArgs.AudioBitrateKbps(smaller));
+                Assert.True(VideoEncoderArgs.MaxBitrateKbps(Options(EncoderKind.Nvenc, VideoCodec.H264, sharper))
+                    > VideoEncoderArgs.MaxBitrateKbps(Options(EncoderKind.Nvenc, VideoCodec.H264, smaller)));
+            }
+        }
+
+        [Theory]
+        [InlineData(1, 160, 1, 2062)]
+        [InlineData(1, 160, 2, 1902)]
+        [InlineData(2, 96, 1, 4348)]
+        [InlineData(8, 192, 1, 17586)]
+        public void VideoKbpsForSizeLimit_LeavesTheSoundItsShare(int gigabytes, int audioKbps, int tracks, int expected)
+        {
+            Assert.Equal(2222, VideoEncoderArgs.TotalKbpsForGigabytesPerHour(1));
+            Assert.Equal(expected, VideoEncoderArgs.VideoKbpsForSizeLimit(gigabytes, audioKbps, tracks));
+        }
+
+        [Fact]
+        public void VideoKbpsForSizeLimit_NoneWhenOffAndNeverBelowAFloor()
+        {
+            Assert.Null(VideoEncoderArgs.VideoKbpsForSizeLimit(0, 160, 1));
+            Assert.Equal(300, VideoEncoderArgs.VideoKbpsForSizeLimit(1, 2000, 2));
+        }
+
+        [Theory]
+        [MemberData(nameof(AllSupportedEncoders))]
+        public void Build_WithSizeLimit_EveryEncoderHasACeilingAtTheLimit(EncoderKind kind, VideoCodec codec)
+        {
+            var args = Args(Options(kind, codec, QualityPreset.Balanced, limit: 2062));
+
+            Assert.Equal("2062k", Value(args, "-maxrate"));
+            Assert.Equal(EncoderCatalog.FfmpegName(kind, codec), Value(args, "-c:v"));
+
+            switch (kind)
+            {
+                case EncoderKind.Amf:
+                    Assert.Equal("qvbr", Value(args, "-rc"));
+                    Assert.Equal("24", Value(args, "-qvbr_quality_level"));
+                    Assert.DoesNotContain("-qp_i", args);
+                    break;
+                case EncoderKind.Qsv:
+                    // qsvenc.c picks QVBR only with global_quality, a bit rate, and a maxrate that differs from it.
+                    Assert.Equal("24", Value(args, "-global_quality"));
+                    Assert.Equal("1031k", Value(args, "-b:v"));
+                    break;
+                case EncoderKind.X264:
+                    Assert.Equal("24", Value(args, "-crf"));
+                    Assert.Equal("4124k", Value(args, "-bufsize"));
+                    break;
+                case EncoderKind.MediaFoundation:
+                    Assert.Equal("pc_vbr", Value(args, "-rate_control"));
+                    Assert.Equal("1374k", Value(args, "-b:v"));
+                    Assert.DoesNotContain("-quality", args);
+                    break;
+                case EncoderKind.Nvenc:
+                    Assert.Equal("vbr", Value(args, "-rc"));
+                    break;
+            }
+        }
+
+        [Fact]
+        public void Build_LimitAbovePresetCap_KeepsThePresetCap()
+        {
+            var args = Args(Options(EncoderKind.Nvenc, VideoCodec.H264, QualityPreset.Balanced, limit: 999_999));
+
+            Assert.Equal("21151k", Value(args, "-maxrate"));
+        }
+
+        [Theory]
+        [MemberData(nameof(AllSupportedEncoders))]
+        public void Build_WithoutLimit_CpuAndQsvAndAmfStayInPureQualityModes(EncoderKind kind, VideoCodec codec)
+        {
+            var args = Args(Options(kind, codec));
+
+            if (kind == EncoderKind.Qsv || kind == EncoderKind.X264 || kind == EncoderKind.MediaFoundation
+                || (kind == EncoderKind.Amf && codec != VideoCodec.Av1))
+            {
+                Assert.DoesNotContain("-maxrate", args);
+            }
         }
 
         private static List<string> Args(VideoEncodeOptions options) => VideoEncoderArgs.Build(options).ToList();

@@ -72,6 +72,26 @@ namespace Recora.Core.Tests.Settings
         }
 
         [Theory]
+        [InlineData("{\"maxGigabytesPerHour\":3}", 0)]
+        [InlineData("{\"maxGigabytesPerHour\":-1}", 0)]
+        [InlineData("{\"maxGigabytesPerHour\":4}", 4)]
+        [InlineData("{}", 0)]
+        public void Load_SizeLimit_OnlyOfferedValuesSurvive(string json, int expected)
+        {
+            File.WriteAllText(SettingsPath, json);
+
+            Assert.Equal(expected, SettingsStore.Load(SettingsPath).MaxGigabytesPerHour);
+        }
+
+        [Fact]
+        public void Load_SaverQuality_RoundTrips()
+        {
+            SettingsStore.Save(SettingsPath, new AppSettings { Quality = QualityPreset.Saver });
+
+            Assert.Equal(QualityPreset.Saver, SettingsStore.Load(SettingsPath).Quality);
+        }
+
+        [Theory]
         [InlineData(0, AppSettings.MinFps)]
         [InlineData(999, AppSettings.MaxFps)]
         [InlineData(144, 144)]
@@ -106,6 +126,7 @@ namespace Recora.Core.Tests.Settings
                 ScreenshotSound = false,
                 WebcamOverlay = true,
                 ClickHighlight = true,
+                MaxGigabytesPerHour = 2,
                 EncoderProbe = new EncoderProbeCache { Fingerprint = "10de:2684|8.1.3", Working = new[] { "h264_nvenc" } },
             };
 
@@ -131,6 +152,7 @@ namespace Recora.Core.Tests.Settings
             Assert.Equal(30, loaded.AutoStopMinutes);
             Assert.False(loaded.ScreenshotSound);
             Assert.True(loaded.WebcamOverlay && loaded.ClickHighlight);
+            Assert.Equal(2, loaded.MaxGigabytesPerHour);
             Assert.Equal(new[] { "h264_nvenc" }, loaded.EncoderProbe!.Working);
             Assert.False(File.Exists(SettingsPath + ".tmp"));
         }
