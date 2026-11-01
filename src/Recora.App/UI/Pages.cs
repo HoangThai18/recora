@@ -167,6 +167,28 @@ namespace Recora.App.UI
                     DeviceSelected?.Invoke(this, device);
                 }
             };
+            Windows = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Theme.Surface,
+                ForeColor = Theme.Text,
+                Font = Theme.Body,
+                Width = 340,
+                DropDownWidth = 460,
+                Margin = new Padding(0, 0, 0, 12),
+                AccessibleName = "Cửa sổ cần ghi",
+            };
+
+            // The list is read again each time it opens, so a game started after Recora is there.
+            Windows.DropDown += (_, _) => WindowsOpening?.Invoke(this, EventArgs.Empty);
+            Windows.SelectionChangeCommitted += (_, _) =>
+            {
+                if (!_filling && Windows.SelectedItem is WindowItem item && !item.Closed)
+                {
+                    WindowSelected?.Invoke(this, item.Window);
+                }
+            };
             AudioFormats = new Segmented<Core.Ffmpeg.AudioFormat>(
                 new[] { (Core.Ffmpeg.AudioFormat.M4a, "M4A"), (Core.Ffmpeg.AudioFormat.Mp3, "MP3"), (Core.Ffmpeg.AudioFormat.Wav, "WAV") },
                 Core.Ffmpeg.AudioFormat.M4a)
@@ -176,7 +198,7 @@ namespace Recora.App.UI
             };
 
             var details = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Theme.Surface, Margin = Padding.Empty };
-            details.Controls.AddRange(new Control[] { _mode, _source, _encoder, _pickerLabel, Monitors, Devices, AudioFormats });
+            details.Controls.AddRange(new Control[] { _mode, _source, _encoder, _pickerLabel, Monitors, Windows, Devices, AudioFormats });
             _row = new SourceRow(Preview, details) { Margin = Padding.Empty };
             source.Body.Controls.Add(_row);
             source.Body.SizeChanged += (_, _) => FitRow(source);
@@ -218,15 +240,62 @@ namespace Recora.App.UI
 
         public event EventHandler<string>? DeviceSelected;
 
+        /// <summary>A window was chosen in the list; null is "pick with the mouse".</summary>
+        public event EventHandler<Core.Capture.OpenWindow?>? WindowSelected;
+
+        /// <summary>The window list is about to open: time to fill it with what is open now.</summary>
+        public event EventHandler? WindowsOpening;
+
         public enum PickerKind
         {
             Monitors,
+            Windows,
             Devices,
             AudioFormats,
             None,
         }
 
         public ComboBox Devices { get; }
+
+        public ComboBox Windows { get; }
+
+        /// <summary>
+        /// Fills the window list: "pick with the mouse" first, then the open windows. The saved one stays listed
+        /// (marked closed) when it is not open, so the choice is never lost silently.
+        /// </summary>
+        public void ShowWindows(IReadOnlyList<Core.Capture.OpenWindow> windows, Core.Capture.OpenWindow? selected, string? closedLabel)
+        {
+            _filling = true;
+            try
+            {
+                Windows.BeginUpdate();
+                Windows.Items.Clear();
+                Windows.Items.Add(new WindowItem(null, "Chọn bằng chuột khi bấm Ghi (phím tắt: cửa sổ đang mở trước)"));
+                var index = 0;
+                if (selected == null && closedLabel != null)
+                {
+                    Windows.Items.Add(new WindowItem(null, closedLabel + " (chưa mở)", closed: true));
+                    index = 1;
+                }
+
+                foreach (var window in windows)
+                {
+                    if (selected != null && window.Hwnd == selected.Hwnd)
+                    {
+                        index = Windows.Items.Count;
+                    }
+
+                    Windows.Items.Add(new WindowItem(window, window.Label));
+                }
+
+                Windows.SelectedIndex = index;
+            }
+            finally
+            {
+                Windows.EndUpdate();
+                _filling = false;
+            }
+        }
 
         public Segmented<Core.Ffmpeg.AudioFormat> AudioFormats { get; }
 
@@ -235,11 +304,13 @@ namespace Recora.App.UI
         {
             Monitors.Visible = kind == PickerKind.Monitors;
             Devices.Visible = kind == PickerKind.Devices;
+            Windows.Visible = kind == PickerKind.Windows;
             AudioFormats.Visible = kind == PickerKind.AudioFormats;
             _pickerLabel.Visible = kind != PickerKind.None;
             _pickerLabel.Text = kind switch
             {
                 PickerKind.Devices => "Thiết bị",
+                PickerKind.Windows => "Cửa sổ cần ghi (bấm để chọn)",
                 PickerKind.AudioFormats => "Định dạng",
                 _ => "Màn hình",
             };
@@ -353,6 +424,25 @@ namespace Recora.App.UI
         }
 
         /// <summary>Preview on the left at 16:9, details on the right; stacks when the window is narrow.</summary>
+        private sealed class WindowItem
+        {
+            public WindowItem(Core.Capture.OpenWindow? window, string text, bool closed = false)
+            {
+                Window = window;
+                Text = text;
+                Closed = closed;
+            }
+
+            /// <summary>The saved program, not open now: choosing it again changes nothing.</summary>
+            public bool Closed { get; }
+
+            public Core.Capture.OpenWindow? Window { get; }
+
+            public string Text { get; }
+
+            public override string ToString() => Text;
+        }
+
         private sealed class SourceRow : Panel
         {
             private readonly Control _left;

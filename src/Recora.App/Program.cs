@@ -32,8 +32,9 @@ namespace Recora.App
             var encoderArgs = OptionValue(args, "--dump-encoder-args");
             var editor = OptionValue(args, "--selftest-editor");
             var screenshot = OptionValue(args, "--ui-screenshot");
+            var hotkeys = OptionValue(args, "--selftest-hotkeys");
 
-            if (selfTest != null || crash != null || recover != null || roundtrip != null || exclusion != null || modes != null || replay != null || trim != null || encoderArgs != null || editor != null || screenshot != null)
+            if (selfTest != null || crash != null || recover != null || roundtrip != null || exclusion != null || modes != null || replay != null || trim != null || encoderArgs != null || editor != null || screenshot != null || hotkeys != null)
             {
                 // A GUI-subsystem exe has no console; borrow the caller's so CI logs show progress.
                 NativeMethods.AttachConsole(NativeMethods.AttachParentProcess);
@@ -82,6 +83,11 @@ namespace Recora.App
             if (modes != null)
             {
                 return SelfTest.Modes(modes);
+            }
+
+            if (hotkeys != null)
+            {
+                return SelfTest.Hotkeys(hotkeys);
             }
 
             if (exclusion != null)

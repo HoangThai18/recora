@@ -154,6 +154,10 @@ jobs:
         shell: pwsh
         run: tools/ci/editor-checks.ps1
 
+      - name: Phím tắt vẫn chạy khi game chặn phím, danh sách cửa sổ
+        shell: pwsh
+        run: tools/ci/hotkeys-check.ps1
+
       - name: Cửa sổ Recora không lọt vào video của chính nó
         shell: pwsh
         run: tools/ci/exclusion-check.ps1

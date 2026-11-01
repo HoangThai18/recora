@@ -122,6 +122,25 @@ namespace Recora.App.UI
                     return Bar(path);
                 }
 
+                if (dialog == "window")
+                {
+                    // Window mode: the list of open windows with the game chosen.
+                    var game = new Core.Capture.OpenWindow(3, "League of Legends (TM) Client", "League of Legends");
+                    form.Home.ShowPicker(HomePage.PickerKind.Windows);
+                    form.Home.ShowWindows(new[] { game, new Core.Capture.OpenWindow(4, "YouTube - Google Chrome", "chrome") }, game, null);
+                    form.Home.Display(new HomeModel(
+                        "Cửa sổ",
+                        "Bấm F12 (cả trong game): ghi cửa sổ League of Legends.exe; video bám theo cửa sổ dù bị che",
+                        "NVIDIA NVENC · H.264 · ghi bằng GPU",
+                        new[] { "Cân bằng", "H.264", "60 fps", "MP4", "độ phân giải gốc", "có chuột" },
+                        SystemAudio: true,
+                        Microphone: true));
+                    for (var i = 0; i < 10; i++)
+                    {
+                        Application.DoEvents();
+                    }
+                }
+
                 if (dialog == "trim")
                 {
                     // The cut dialog over the library, with a picture of the desktop in place of a decoded still.
