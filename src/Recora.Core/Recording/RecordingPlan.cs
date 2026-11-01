@@ -31,6 +31,7 @@ namespace Recora.Core.Recording
     }
 
     /// <summary>Everything that decides one segment's FFmpeg command, already resolved to a backend and an encoder.</summary>
+    /// <param name="MaxGigabytesPerHour">The user's size limit (0 for none), shared between the picture and the sound.</param>
     public sealed record RecordingPlan(
         CaptureSource Source,
         CaptureBackend Backend,
@@ -39,7 +40,8 @@ namespace Recora.Core.Recording
         int Fps,
         OutputScale Scale,
         bool DrawCursor,
-        AudioLayout Audio)
+        AudioLayout Audio,
+        int MaxGigabytesPerHour = 0)
     {
         public int AudioTrackCount => Audio switch
         {
@@ -74,7 +76,8 @@ namespace Recora.Core.Recording
             get
             {
                 var (width, height) = OutputSize;
-                return new VideoEncodeOptions(Encoder, Quality, Fps, width, height);
+                var limit = VideoEncoderArgs.VideoKbpsForSizeLimit(MaxGigabytesPerHour, VideoEncoderArgs.AudioBitrateKbps(Quality), AudioTrackCount);
+                return new VideoEncodeOptions(Encoder, Quality, Fps, width, height, limit);
             }
         }
     }
