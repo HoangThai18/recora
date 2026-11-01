@@ -1439,8 +1439,8 @@ namespace Recora.App
             _tray.Notify(
                 "Recora đang ghi bằng CPU",
                 _settings.LightOnCpu
-                    ? "GPU của máy chưa ghi được nên Recora tự giảm còn 720p, 30 khung/giây để game đỡ tụt FPS. Đổi ở Cài đặt, mục Mã hoá."
-                    : "GPU của máy chưa ghi được nên game có thể tụt FPS. Giảm còn 30 khung/giây hoặc 720p ở phần Cài đặt sẽ nhẹ hơn.",
+                    ? "GPU của máy chưa ghi được nên Recora tự giảm còn 720p, 30 khung/giây để game đỡ tụt FPS. Đổi ở trang Video, mục Mã hoá."
+                    : "GPU của máy chưa ghi được nên game có thể tụt FPS. Giảm còn 30 khung/giây hoặc 720p ở trang Video sẽ nhẹ hơn.",
                 ToolTipIcon.Warning);
         }
 
