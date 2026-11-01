@@ -334,8 +334,7 @@ namespace Recora.App.UI
                     names[pid] = process;
                 }
 
-                // The desktop's Program Manager and the taskbar are no recording targets.
-                if (string.Equals(process, "explorer", StringComparison.OrdinalIgnoreCase) && Title(hwnd) == "Program Manager")
+                if (IsDesktop(hwnd, process))
                 {
                     continue;
                 }
@@ -356,8 +355,13 @@ namespace Recora.App.UI
             }
 
             GetWindowThreadProcessId(hwnd, out var pid);
-            return new Core.Capture.OpenWindow(hwnd.ToInt64(), Title(hwnd), ProcessName(pid));
+            var process = ProcessName(pid);
+            return IsDesktop(hwnd, process) ? null : new Core.Capture.OpenWindow(hwnd.ToInt64(), Title(hwnd), process);
         }
+
+        /// <summary>The desktop behind the icons (Program Manager) is no window to record; full screen mode is.</summary>
+        private static bool IsDesktop(IntPtr hwnd, string process) =>
+            string.Equals(process, "explorer", StringComparison.OrdinalIgnoreCase) && Title(hwnd) == "Program Manager";
 
         private static string ProcessName(uint pid)
         {
